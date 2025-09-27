@@ -10,6 +10,7 @@ from collections import Counter
 # "Supervisor" = title of the message box
 ctypes.windll.user32.MessageBoxW(0, "Supervisor program successfully opened", "Supervisor", 0)
 
+
 # Function to extract selected columns
 def extract_columns(data, selected_columns,delimiter=';'):
     '''
@@ -49,20 +50,33 @@ def save_file(estado,bateria,capacidad,ciclo,data):
     When the 5 states changes, then it's certain the battery power state has changed
     '''
     estados_pasados.append(estado)
-    if len(estados_pasados)==1: #data collection is beginnning
-        print("saving data starting")
-        #log_file = open(f"Data_original_{bateria}_{capacidad}_{ciclo}_{int(time.time())}.txt", "w")
-        #log_file.write('datetime;voltage[V];current[mA];capacity[mAh]'+'\n')#colocando los encabezados de las columnas
-    elif len(estados_pasados)>4:
+    #determine the correct battery state (charging, resting, discharging) to save data to
+    if len(estados_pasados)>4:
         if all(x==estado for x in estados_pasados):
-            file_name=f"{bateria}{estado[0]}_{capacidad}_{ciclo}.csv"
+            file_name=f"{bateria}{estado}_{capacidad}_{ciclo}.csv"
         else:
             most_common_elem, count = Counter(estados_pasados).most_common(1)[0]
-            file_name:f"{bateria}{most_common_elem[0]}_{capacidad}_{ciclo}.csv"
+            if most_common_elem=="charging" and count==3 and estado=='charging':
+                ciclo+=1
+            file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
+        if not(file_name in dict_data):
+            dict_data[file_name]=[]
+            state_file = open(file_name, "w")
+            state_file.write('datetime;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+            state_file.flush()
+        dict_data[file_name].append(data)
         estados_pasados.pop(0)
-    #log_file.write(f"{data}"+'\n')#write the data in the files
-    #log_file.flush()
-
+        
+        #writing data to the specific file
+        try:
+            state_file = open(file_name, "a")
+        except:
+            print("book is already open")
+        finally:
+            state_file.write(data+'\n')
+            state_file.flush()
+    return ciclo
+        
 
 def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
     try:
@@ -71,33 +85,40 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
 
             if log_to_file:
                 log_file = open(f"data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                log_file.write('datetime;voltage[V];current[mA];capacity[mAh]'+'\n')#colocando los encabezados de las columnas
+                log_file.write('datetime;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
                 log_file.flush()
             else:
                 log_file = None
 
             last_activity_time = time.time()
+
+            #auxiliary runtime variables
             estados_pasados=[]
-            
+            dict_data={}
+            columns_to_extract=[0,2,5,6,15]#datetime, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
+
+            #data recording
             while True:
                 if ser.in_waiting > 0:
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
                         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                         output = f"{timestamp};{data}"
-                        print(output)
+                        #print(output)
                         
                         data,estado=extract_columns(output,columns_to_extract)
                         if estados_pasados==['finished','finished','finished','finished']:
                             print("finished cicles \nclosing program")
+                            print(a.split(';')[0])
                             break
-                        elif log_to_file:
-                            save_file(estado,1,1,1,data)
-                    
+                            
+                        if log_to_file:
+                            #original data
+                            if log_file:
+                                log_file.write(data + '\n')
+                                log_file.flush()
+                                ciclo=save_file(estado,1,1,ciclo,data)                    
                         
-                        if log_file:
-                            log_file.write(data + '\n')
-                            log_file.flush()
                         last_activity_time = time.time()
 
                 # Check for timeout
@@ -128,7 +149,15 @@ if __name__ == "__main__":
         c=input("Confirme que el puerto seleccionado es correcto (Y/N): ")
         if c.upper()=="Y":
             confirm=True
-    
+    confirm=False
+    while not(confirm):
+        bateria=input("Indique el número de batería: ")
+        capacidad=input("Indique la capacidad de la bateria: ")
+        ciclo=int(input("Indique el primer ciclo de la bateria (Debe ser un numero entero): "))
+        print(f"El nombre del archivo se vera de la siguiente manera: {bateria}_{capacidad}_{ciclo}.csv")
+        c=input("Confirme que el puerto seleccionado es correcto (Y/N): ")
+        if c.upper()=="Y":
+            confirm=True
     # Start reading serial data
-    monitor_serial_port(b[a],log_to_file=True,timeout_seconds=10)
+    monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10)
     time.sleep(5)
