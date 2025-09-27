@@ -18,14 +18,14 @@ def extract_columns(data, selected_columns,delimiter=';'):
     Determines which is the current state type.
     '''
     columns = data.split(delimiter)  
-    result = [str(int(columns[i])/1000) if i==5 else columns[i] for i in selected_columns]
-    if result[1]=='1':
+    result = [str(int(columns[i])/1000) if i==6 else columns[i] for i in selected_columns]
+    if result[2]=='1':
         estado='charging'
-    elif result [1]=='2':
+    elif result [2]=='2':
         estado='discharging'
-    elif result [1]=='4':
+    elif result [2]=='4':
         estado='rest'
-    elif result[1]=='6':
+    elif result[2]=='6':
         estado='finished'
     return delimiter.join(result),estado #return the data as string
 
@@ -95,7 +95,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
             #auxiliary runtime variables
             estados_pasados=[]
             dict_data={}
-            columns_to_extract=[0,2,5,6,15]#datetime, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
+            columns_to_extract=[0,1,3,6,7,16]#date, time, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
 
             #data recording
             while True:
@@ -117,7 +117,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                             if log_file:
                                 log_file.write(data + '\n')
                                 log_file.flush()
-                                ciclo=save_file(estado,1,1,ciclo,data)                    
+                                ciclo=save_file(estado,bateria,capacidad,ciclo,data)
                         
                         last_activity_time = time.time()
 
