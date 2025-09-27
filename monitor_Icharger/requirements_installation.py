@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-required_packages=['pyserial==3.5','serial==0.0.97']
+required_packages=['pyserial==3.5','serial==0.0.97','psycopg2-binary']
 
 def install_package(package):
     """Installs the package using pip"""
