@@ -62,7 +62,7 @@ def save_file(estado,bateria,capacidad,ciclo,data):
         if not(file_name in dict_data):
             dict_data[file_name]=[]
             state_file = open(file_name, "w")
-            state_file.write('date;time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+            state_file.write('date;system_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
             state_file.flush()
         dict_data[file_name].append(data)
         estados_pasados.pop(0)
@@ -85,7 +85,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
 
             if log_to_file:
                 log_file = open(f"data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                log_file.write('date;time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+                log_file.write('date;system_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
                 log_file.flush()
             else:
                 log_file = None
