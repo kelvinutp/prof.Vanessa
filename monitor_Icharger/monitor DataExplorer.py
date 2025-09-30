@@ -45,7 +45,7 @@ def list_com_ports():
         print("No COM ports found.")
     return [port.device for port in ports]
 
-def save_file(estado,bateria,capacidad,ciclo,data):
+def save_file(estado,bateria,capacidad,ciclo,data,base_time):
     '''
     Function for saving the data file (.csv)
     By data analisis, each current state is compared to the previous four (4) states. 
@@ -63,6 +63,7 @@ def save_file(estado,bateria,capacidad,ciclo,data):
             file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
         if not(file_name in dict_data):
             dict_data[file_name]=[]
+            base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts for the new stage
             state_file = open(file_name, "w")
             state_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
             state_file.flush()
@@ -77,7 +78,7 @@ def save_file(estado,bateria,capacidad,ciclo,data):
         finally:
             state_file.write(data+'\n')
             state_file.flush()
-    return ciclo
+    return ciclo,base_time
         
 
 def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
@@ -121,7 +122,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                             if log_file:
                                 log_file.write(data + '\n')
                                 log_file.flush()
-                                ciclo=save_file(estado,bateria,capacidad,ciclo,data)
+                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time)
                         
                         last_activity_time = time.time()
 
