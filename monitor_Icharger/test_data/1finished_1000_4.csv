@@ -1,0 +1,3 @@
+date;system_hour;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]
+2025-09-23;19:18:06;0:00:58;finished;3.841;0;7
+2025-09-23;19:18:08;0:00:02;finished;3.84;0;7

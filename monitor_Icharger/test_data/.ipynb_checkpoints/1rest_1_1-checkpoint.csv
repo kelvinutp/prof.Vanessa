@@ -1,4 +1,4 @@
-date;system_time;battery_state;voltage[V];current[mA];capacity[mAh]
+date;time;battery_state;voltage[V];current[mA];capacity[mAh]
 2025-09-23;08:51:10;rest;3.865;0;6
 2025-09-23;08:51:12;rest;3.865;0;6
 2025-09-23;08:51:14;rest;3.864;0;6
