@@ -48,24 +48,25 @@ def get_column_title(file):
             cycle="unknown"
         kw = match.group(0).lower()
         if kw.startswith("dis"):
-            cycle= "discharge"
+            cycle= "discharging"
         elif kw == "rest":
             cycle= "rest"
         else:
-            cycle= "charge"
-    
-        print (cycle)
+            cycle= "charging"
+            
+        # print (cycle)
     
         #extract the data in the desired order
         aux=0
-        print(headings)
+        # print(headings)
         while aux<10: #extracting the remaining data
             line=f.readline().strip()
             data=line.split(';')
             db_data=[data[a] for a in order.values()]
             if 'date' not in order:
                 db_data.insert(0,date.group(0))
-            print(db_data)
+            # print(db_data)
+            insert_cycle_data(conn, cycle,db_data)
             aux+=1
 
 def create_tables_and_triggers(conn):
