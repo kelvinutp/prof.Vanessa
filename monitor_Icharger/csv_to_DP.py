@@ -22,7 +22,7 @@ def order_columns(header_row):
 def get_column_title(file):
     csv_path = Path(file)
     if not csv_path.exists():
-        raise FileNotFoundError(f"{csv_file_path} not found.")
+        raise FileNotFoundError(f"{file} not found.")
     with csv_path.open('r', newline='', encoding='utf-8') as f:
         aux=False
         count=0
@@ -30,7 +30,7 @@ def get_column_title(file):
             line=f.readline()
             if line.count(';')>=3:
                 aux=True
-        #order the columns (date, time, voltage, current, capacity)
+    #order the columns (date, time, voltage, current, capacity)
         order=order_columns(line.strip())
         headings=[a for a in order.keys()]
         if 'date' not in order:
@@ -39,11 +39,15 @@ def get_column_title(file):
                 headings.insert(0,'date')
             except ValueError:
                 pass
-        
-        #determine if the file is for charging, resting or discharging (from the file title)
+    #determine if the file is for charging, resting or discharging (from the file title)
         # Regex: look for “charg” or “discharg” or “rest”, case-insensitive
         pattern = re.compile(r"(?i)(?:dis)?charg|rest")
-        match = pattern.search(file.lower())
+        if "finish" in file.lower() or 'original' in file.lower():
+            return #not useful data
+        file_name=file.lower().split('/')
+        # print(file_name)
+        match = pattern.search(file_name[-1])
+        # print(match)
         if not match:
             cycle="unknown"
         kw = match.group(0).lower()
@@ -53,21 +57,23 @@ def get_column_title(file):
             cycle= "rest"
         else:
             cycle= "charging"
-            
-        # print (cycle)
     
-        #extract the data in the desired order
+    #extract the data in the desired order
         aux=0
-        # print(headings)
-        while aux<10: #extracting the remaining data
+        print(headings)
+        
+        while True: #extracting the remaining data
             line=f.readline().strip()
-            data=line.split(';')
-            db_data=[data[a] for a in order.values()]
-            if 'date' not in order:
-                db_data.insert(0,date.group(0))
-            # print(db_data)
-            insert_cycle_data(conn, cycle,db_data)
-            aux+=1
+            if line:
+                data=line.split(';')
+                db_data=[data[a] for a in order.values()]
+                if 'date' not in order:
+                    db_data.insert(0,date.group(0))
+                db_data.append(file_name[-1])
+                insert_cycle_data(conn, cycle,db_data)
+                aux+=1
+            else:
+                break #finished reading data
 
 def create_tables_and_triggers(conn):
     commands = [
@@ -79,7 +85,8 @@ def create_tables_and_triggers(conn):
             voltage DOUBLE PRECISION,
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
-            PRIMARY KEY (date, time)
+            file TEXT NOT NULL,
+            PRIMARY KEY (date, time, file)
         );
         """,
         """
@@ -89,7 +96,8 @@ def create_tables_and_triggers(conn):
             voltage DOUBLE PRECISION,
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
-            PRIMARY KEY (date, time)
+            file TEXT NOT NULL,
+            PRIMARY KEY (date, time, file)
         );
         """,
         """
@@ -99,7 +107,8 @@ def create_tables_and_triggers(conn):
             voltage DOUBLE PRECISION,
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
-            PRIMARY KEY (date, time)
+            file TEXT NOT NULL,
+            PRIMARY KEY (date, time, file)
         );
         """,
         # Create all_data
@@ -111,7 +120,8 @@ def create_tables_and_triggers(conn):
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
             mode VARCHAR(20) NOT NULL,
-            PRIMARY KEY (date, time, mode)
+            file TEXT NOT NULL,
+            PRIMARY KEY (date, time, mode, file)
         );
         """,
         # Trigger for charging → all_data
@@ -119,9 +129,9 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_charging()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging')
-            ON CONFLICT (date, time, mode) DO NOTHING;
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file)
+            ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -138,9 +148,9 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_rest()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'rest')
-            ON CONFLICT (date, time, mode) DO NOTHING;
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'rest', NEW.file)
+            ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -157,9 +167,9 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_discharging()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'discharging')
-            ON CONFLICT (date, time, mode) DO NOTHING;
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'discharging', NEW.file)
+            ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -177,30 +187,29 @@ def create_tables_and_triggers(conn):
     for cmd in commands:
         cur.execute(cmd)
     conn.commit()
-    cur.close()
-
-
+    
 def insert_cycle_data(conn, cycle: str, data: list):
     """
     Insert data into the appropriate table based on `cycle`.
 
     cycle: one of "charging", "rest", "discharging" (case-insensitive)
-    data: list or tuple of values [date, time, voltage, current, capacity]
+    data: list or tuple of values [date, time, voltage, current, capacity, file]
     """
 
     # Normalize the cycle string (lowercase)
     table_name = cycle.lower()
-
     # SQL insert template
     insert_template = sql.SQL(
-        "INSERT INTO {tbl} (date, time, voltage, current, capacity) "
-        "VALUES (%s, %s, %s, %s, %s)"
+        "INSERT INTO {tbl} (date, time, voltage, current, capacity, file) "
+        "VALUES (%s, %s, %s, %s, %s, %s)"
+        "ON CONFLICT (date,time,file) DO NOTHING;"
     ).format(
         tbl = sql.Identifier(table_name)
     )
 
     # Execute with the data values
     with conn.cursor() as cur:
+        # print("data insertion",data)
         cur.execute(insert_template, data)
     conn.commit()
 
