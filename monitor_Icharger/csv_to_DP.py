@@ -41,27 +41,20 @@ def get_column_title(file):
                 pass
     #determine if the file is for charging, resting or discharging (from the file title)
         # Regex: look for “charg” or “discharg” or “rest”, case-insensitive
-        pattern = re.compile(r"(?i)(?:dis)?charg|rest")
+        pattern = r'^(\d+)(charging|discharging|rest)_(\d+)_(\d+)\.csv$'
         if "finish" in file.lower() or 'original' in file.lower():
             return #not useful data
         file_name=file.lower().split('/')
-        # print(file_name)
-        match = pattern.search(file_name[-1])
-        # print(match)
-        if not match:
-            cycle="unknown"
-        kw = match.group(0).lower()
-        if kw.startswith("dis"):
-            cycle= "discharging"
-        elif kw == "rest":
-            cycle= "rest"
-        else:
-            cycle= "charging"
+        m = re.match(pattern, file_name[-1])
+        if not m:
+            return f"Filename '{file_name[-1]}' does not match expected pattern"
+        battery_number = int(m.group(1))
+        cycle_stage = m.group(2)
+        nominal_capacity = int(m.group(3))
+        cycle_number = int(m.group(4))
     
     #extract the data in the desired order
-        aux=0
-        print(headings)
-        
+        aux=0        
         while True: #extracting the remaining data
             line=f.readline().strip()
             if line:
@@ -69,8 +62,10 @@ def get_column_title(file):
                 db_data=[data[a] for a in order.values()]
                 if 'date' not in order:
                     db_data.insert(0,date.group(0))
-                db_data.append(file_name[-1])
-                insert_cycle_data(conn, cycle,db_data)
+                db_data.append(file_name[-1])#adding filename
+                db_data.append(cycle_number)#adding cycle number
+                db_data.append(nominal_capacity)#adding nominal capacity
+                insert_cycle_data(conn, cycle_stage,db_data)
                 aux+=1
             else:
                 break #finished reading data
@@ -86,6 +81,8 @@ def create_tables_and_triggers(conn):
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
             file TEXT NOT NULL,
+            cycle_number INTEGER,
+            nominal_capacity INTEGER,
             PRIMARY KEY (date, time, file)
         );
         """,
@@ -97,6 +94,8 @@ def create_tables_and_triggers(conn):
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
             file TEXT NOT NULL,
+            cycle_number INTEGER,
+            nominal_capacity INTEGER,
             PRIMARY KEY (date, time, file)
         );
         """,
@@ -108,6 +107,8 @@ def create_tables_and_triggers(conn):
             current DOUBLE PRECISION,
             capacity DOUBLE PRECISION,
             file TEXT NOT NULL,
+            cycle_number INTEGER,
+            nominal_capacity INTEGER,
             PRIMARY KEY (date, time, file)
         );
         """,
@@ -121,6 +122,8 @@ def create_tables_and_triggers(conn):
             capacity DOUBLE PRECISION,
             mode VARCHAR(20) NOT NULL,
             file TEXT NOT NULL,
+            cycle_number INTEGER,
+            nominal_capacity INTEGER,
             PRIMARY KEY (date, time, mode, file)
         );
         """,
@@ -129,8 +132,8 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_charging()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file)
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file, cycle_number, nominal_capacity)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
             ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
@@ -148,8 +151,8 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_rest()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'rest', NEW.file)
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file, cycle_number, nominal_capacity)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
             ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
@@ -167,8 +170,8 @@ def create_tables_and_triggers(conn):
         CREATE OR REPLACE FUNCTION trg_after_insert_discharging()
         RETURNS TRIGGER AS $$
         BEGIN
-            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'discharging', NEW.file)
+            INSERT INTO all_data(date, time, voltage, current, capacity, mode, file, cycle_number, nominal_capacity)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
             ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
@@ -193,15 +196,15 @@ def insert_cycle_data(conn, cycle: str, data: list):
     Insert data into the appropriate table based on `cycle`.
 
     cycle: one of "charging", "rest", "discharging" (case-insensitive)
-    data: list or tuple of values [date, time, voltage, current, capacity, file]
+    data: list or tuple of values [date, time, voltage, current, capacity, file, cycle_number, nominal_capacity]
     """
 
     # Normalize the cycle string (lowercase)
     table_name = cycle.lower()
     # SQL insert template
     insert_template = sql.SQL(
-        "INSERT INTO {tbl} (date, time, voltage, current, capacity, file) "
-        "VALUES (%s, %s, %s, %s, %s, %s)"
+        "INSERT INTO {tbl} (date, time, voltage, current, capacity, file, cycle_number, nominal_capacity) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         "ON CONFLICT (date,time,file) DO NOTHING;"
     ).format(
         tbl = sql.Identifier(table_name)
