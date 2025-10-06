@@ -3,6 +3,7 @@ import serial
 import time
 import serial.tools.list_ports
 from collections import Counter
+from datetime import datetime
 
 # MessageBox parameters:
 # 0 = OK button only
@@ -18,15 +19,24 @@ def extract_columns(data, selected_columns,delimiter=';'):
     Determines which is the current state type.
     '''
     columns = data.split(delimiter)  
-    result = [str(int(columns[i])/1000) if i==6 else columns[i] for i in selected_columns]
-    if result[2]=='1':
+    result=[]
+    for i in selected_columns:
+        if i==7: #voltage
+            result.append(str(int(columns[i])/1000))
+        elif i==8:#current
+            result.append(str(int(columns[i])/100))
+        else:
+            result.append(columns[i])
+    # result = [str(int(columns[i])/1000) if i==7 else columns[i] for i in selected_columns]
+    if result[3]=='1':
         estado='charging'
-    elif result [2]=='2':
+    elif result [3]=='2':
         estado='discharging'
-    elif result [2]=='4':
+    elif result [3]=='4':
         estado='rest'
-    elif result[2]=='6':
+    elif result[3]=='6':
         estado='finished'
+    result[3]=estado
     return delimiter.join(result),estado #return the data as string
 
 def list_com_ports():
@@ -43,7 +53,7 @@ def list_com_ports():
         print("No COM ports found.")
     return [port.device for port in ports]
 
-def save_file(estado,bateria,capacidad,ciclo,data):
+def save_file(estado,bateria,capacidad,ciclo,data,base_time):
     '''
     Function for saving the data file (.csv)
     By data analisis, each current state is compared to the previous four (4) states. 
@@ -61,8 +71,9 @@ def save_file(estado,bateria,capacidad,ciclo,data):
             file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
         if not(file_name in dict_data):
             dict_data[file_name]=[]
+            base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts for the new stage
             state_file = open(file_name, "w")
-            state_file.write('date;time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+            state_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
             state_file.flush()
         dict_data[file_name].append(data)
         estados_pasados.pop(0)
@@ -75,17 +86,18 @@ def save_file(estado,bateria,capacidad,ciclo,data):
         finally:
             state_file.write(data+'\n')
             state_file.flush()
-    return ciclo
+    return ciclo,base_time
         
 
 def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
     try:
         with serial.Serial(port, baudrate, timeout=1) as ser:
             print(f"Monitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
-
+            base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts
+            
             if log_to_file:
                 log_file = open(f"data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                log_file.write('date;time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+                log_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
                 log_file.flush()
             else:
                 log_file = None
@@ -95,7 +107,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
             #auxiliary runtime variables
             estados_pasados=[]
             dict_data={}
-            columns_to_extract=[0,1,3,6,7,16]#date, time, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
+            columns_to_extract=[0,1,2,4,7,8,17]#date, system_time,cycle_time, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
 
             #data recording
             while True:
@@ -103,7 +115,8 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
                         timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
-                        output = f"{timestamp};{data}"
+                        diff=str(abs(base_time-timestamp))
+                        output = f"{timestamp};{diff};{data}"
                         #print(output)
                         
                         data,estado=extract_columns(output,columns_to_extract)
@@ -117,7 +130,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                             if log_file:
                                 log_file.write(data + '\n')
                                 log_file.flush()
-                                ciclo=save_file(estado,bateria,capacidad,ciclo,data)
+                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time)
                         
                         last_activity_time = time.time()
 
