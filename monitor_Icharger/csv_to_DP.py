@@ -239,4 +239,5 @@ if __name__ == '__main__':
     txt_files = [os.path.join(CSV_FILE_PATH, f) for f in os.listdir(CSV_FILE_PATH) if f.endswith('.csv') and os.path.isfile(os.path.join(CSV_FILE_PATH, f))]
     for a in txt_files:
         b=data_reading(a)
+        # print(a)
   
