@@ -155,7 +155,7 @@ def create_tables_and_triggers(conn):
         RETURNS TRIGGER AS $$
         BEGIN
             INSERT INTO all_data(date, time, voltage, current, capacity, mode, file, cycle_number, nominal_capacity)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'rest', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
             ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
@@ -174,7 +174,7 @@ def create_tables_and_triggers(conn):
         RETURNS TRIGGER AS $$
         BEGIN
             INSERT INTO all_data(date, time, voltage, current, capacity, mode, file, cycle_number, nominal_capacity)
-            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'charging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
+            VALUES (NEW.date, NEW.time, NEW.voltage, NEW.current, NEW.capacity, 'discharging', NEW.file, NEW.cycle_number, NEW.nominal_capacity)
             ON CONFLICT (date, time, mode, file) DO NOTHING;
             RETURN NEW;
         END;
