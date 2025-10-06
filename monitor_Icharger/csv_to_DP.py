@@ -220,7 +220,9 @@ def insert_cycle_data(conn, cycle: str, data: list):
 # ---- Run the script ----
 if __name__ == '__main__':
     #pendientes revisar
-    conn = psycopg2.connect(host="localhost", port=5432, database="mydb",
+    conn = psycopg2.connect(host="localhost", 
+                            port=5432, 
+                            database="mydb",
                             user="myuser", 
                             password="mypassword")
     try:

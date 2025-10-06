@@ -4,6 +4,7 @@ import time
 import serial.tools.list_ports
 from collections import Counter
 from datetime import datetime
+import psycopg2
 
 # MessageBox parameters:
 # 0 = OK button only
@@ -19,7 +20,15 @@ def extract_columns(data, selected_columns,delimiter=';'):
     Determines which is the current state type.
     '''
     columns = data.split(delimiter)  
-    result = [str(int(columns[i])/1000) if i==7 else columns[i] for i in selected_columns]
+    result=[]
+    for i in selected_columns:
+        if i==7: #voltage
+            result.append(str(int(columns[i])/1000))
+        elif i==8:#current
+            result.append(str(int(columns[i])/100))
+        else:
+            result.append(columns[i])
+    # result = [str(int(columns[i])/1000) if i==7 else columns[i] for i in selected_columns]
     if result[3]=='1':
         estado='charging'
     elif result [3]=='2':
@@ -45,7 +54,34 @@ def list_com_ports():
         print("No COM ports found.")
     return [port.device for port in ports]
 
-def save_file(estado,bateria,capacidad,ciclo,data,base_time):
+#function to insert data into DB
+def insert_cycle_data(conn, cycle: str, data: list):
+    """
+    Insert data into the appropriate table based on `cycle`.
+
+    cycle: one of "charging", "rest", "discharging" (case-insensitive)
+    data: list or tuple of values [date, time, voltage, current, capacity, file, cycle_number, nominal_capacity]
+    """
+
+    # Normalize the cycle string (lowercase)
+    table_name = cycle.lower()
+    # SQL insert template
+    insert_template = sql.SQL(
+        "INSERT INTO {tbl} (date, time, voltage, current, capacity, file, cycle_number, nominal_capacity) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        "ON CONFLICT (date,time,file) DO NOTHING;"
+    ).format(
+        tbl = sql.Identifier(table_name)
+    )
+
+    # Execute with the data values
+    with conn.cursor() as cur:
+        # print("data insertion",data)
+        cur.execute(insert_template, data)
+    conn.commit()
+
+
+def save_file(estado,bateria,capacidad,ciclo,data,base_time,conn=''):
     '''
     Function for saving the data file (.csv)
     By data analisis, each current state is compared to the previous four (4) states. 
@@ -78,6 +114,15 @@ def save_file(estado,bateria,capacidad,ciclo,data,base_time):
         finally:
             state_file.write(data+'\n')
             state_file.flush()
+        
+        #writing to DB
+        #formato [date, cycle_time,voltage,current,capacity,file,cycle_number,nominal_capacity]
+        aux=data.split(';')
+        dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
+        try:
+            insert_cycle_data(conn,estado,dataDB)
+        except:
+            print('problemas con ingresar datos en la base de datos')
     return ciclo,base_time
         
 
@@ -122,7 +167,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                             if log_file:
                                 log_file.write(data + '\n')
                                 log_file.flush()
-                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time)
+                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time,conn=conn)
                         
                         last_activity_time = time.time()
 
@@ -164,5 +209,13 @@ if __name__ == "__main__":
         if c.upper()=="Y":
             confirm=True
     # Start reading serial data
+
+    #database credential
+    conn = psycopg2.connect(host="localhost", 
+                            port=5432, 
+                            database="mydb",
+                            user="myuser", 
+                            password="mypassword")
+    
     monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10)
     time.sleep(5)
