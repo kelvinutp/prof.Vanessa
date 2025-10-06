@@ -2,7 +2,7 @@ Codes and sample data related to Icharger battery cycles
 
 # Usage
 
-[Reading Data from serial port](monitor_Icharger/monitor DataExplorer.py)
+[Reading Data from serial port]('./monitor_Icharger/monitor DataExplorer.py')
 This programs reads data from the data serial port. It has integrated the following functions.
 1. Extract columns: This functions read the original data and chooses which to extract and save to the CSV and postgreDB
 The current data structure is as follows:
