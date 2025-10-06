@@ -10,16 +10,19 @@ def order_columns(header_row):
     expected_columns=['date','time','voltage','current','capacity']
     file_column_order={} #key=battery parameter, value=column number
     for aux in expected_columns:
-     	index=0
-     	while index<len(a):
-     		if aux in a[index]:
-     			file_column_order[aux]=index
-     			break
-     		index+=1
+        index=0
+        while index<len(a):
+            if aux in a[index]:
+                file_column_order[aux]=index
+                break
+            index+=1
     return file_column_order
 
 #getting the correct row. Not always the first row has the column titles. This may be found in the first five (5) rows
-def get_column_title(file):
+def data_reading(file:str):
+    '''
+    :param str file: take the file path. "C:/Users/...." MUST be .csv or .txt data type
+    '''
     csv_path = Path(file)
     if not csv_path.exists():
         raise FileNotFoundError(f"{file} not found.")
@@ -235,5 +238,5 @@ if __name__ == '__main__':
     CSV_FILE_PATH=input("Ingrese la ruta del archivo a revisar: ")
     txt_files = [os.path.join(CSV_FILE_PATH, f) for f in os.listdir(CSV_FILE_PATH) if f.endswith('.csv') and os.path.isfile(os.path.join(CSV_FILE_PATH, f))]
     for a in txt_files:
-        b=get_column_title(a)
+        b=data_reading(a)
   
