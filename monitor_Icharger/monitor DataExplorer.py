@@ -5,6 +5,7 @@ import serial.tools.list_ports
 from collections import Counter
 from datetime import datetime
 import psycopg2
+from psycopg2 import sql
 
 # MessageBox parameters:
 # 0 = OK button only
@@ -81,7 +82,7 @@ def insert_cycle_data(conn, cycle: str, data: list):
     conn.commit()
 
 
-def save_file(estado,bateria,capacidad,ciclo,data,base_time,conn=''):
+def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list,dict_data:dict,conn=''):
     '''
     Function for saving the data file (.csv)
     By data analisis, each current state is compared to the previous four (4) states. 
@@ -167,7 +168,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                             if log_file:
                                 log_file.write(data + '\n')
                                 log_file.flush()
-                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time,conn=conn)
+                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados,dict_data,conn=conn)
                         
                         last_activity_time = time.time()
 
@@ -199,6 +200,8 @@ if __name__ == "__main__":
         c=input("Confirme que el puerto seleccionado es correcto (Y/N): ")
         if c.upper()=="Y":
             confirm=True
+    
+    #file naming
     confirm=False
     while not(confirm):
         bateria=input("Indique el número de batería: ")
@@ -208,8 +211,9 @@ if __name__ == "__main__":
         c=input("Confirme que el puerto seleccionado es correcto (Y/N): ")
         if c.upper()=="Y":
             confirm=True
+    
     # Start reading serial data
-
+    
     #database credential
     conn = psycopg2.connect(host="localhost", 
                             port=5432, 
