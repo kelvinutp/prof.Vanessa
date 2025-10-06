@@ -2,7 +2,7 @@ Codes and sample data related to Icharger battery cycles
 
 # Usage
 
-[Reading Data from serial port]('./monitor_Icharger/monitor DataExplorer.py')
+[Reading Data from serial port](./monitor%20DataExplorer.py)
 This programs reads data from the data serial port. It has integrated the following functions.
 1. Extract columns: This functions read the original data and chooses which to extract and save to the CSV and postgreDB
 The current data structure is as follows:
@@ -26,11 +26,11 @@ Naming scheme <ins>{battery}{charging/discharging/rest}_{battery nominal capacit
 
 [Installing requirements](./requirements_installation.py)
 <ins>Only to run once</ins>
-Installs the required python libraries for the [monitor DataExplorer.py](./monitor DataExplorer.py) to work
+Installs the required python libraries for the [monitor DataExplorer.py](./monitor%20DataExplorer.py) to work
 
 [csv_to_DP](./csv_to_DP.py)
-<ins>To run only when there's recorded data **NOT** from the [monitor DataExplorer.py](./monitor DataExplorer.py)</ins>
-This program reads the data (in .csv or .txt) that was <ins> **NOT**</ins> recorded from the [monitor DataExplorer.py](./monitor DataExplorer.py)
+<ins>To run only when there's recorded data **NOT** from the [monitor DataExplorer.py](./monitor%20DataExplorer.py)</ins>
+This program reads the data (in .csv or .txt) that was <ins> **NOT**</ins> recorded from the [monitor DataExplorer.py](./monitor%20DataExplorer.py)
 It has the following integrated functions
 1. order_columns: looks for the row that have the headers and determines the columns data order.
 
