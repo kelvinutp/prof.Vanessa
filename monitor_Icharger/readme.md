@@ -5,14 +5,19 @@ Codes and sample data related to Icharger battery cycles
 [Reading Data from serial port](./monitor%20DataExplorer.py)
 This programs reads data from the data serial port. It has integrated the following functions.
 1. Extract columns: This functions read the original data and chooses which to extract and save to the CSV and postgreDB
-The current data structure is as follows:
+The current data structure is as follows: the number indicates the column index when string is transform into list.
+
 - 0: date (extracted from the system)
 - 1: time (extracted from the system)
 - 2: cycle_time (processed by the script)
 - 4: battery_state_cycle (1: charging, 2:discharing, 4:rest, 6:finished)
 - 7: Voltage (read from COM port) originally in mV.
 - 8: current (read from COM port) originally in cA.
--17: capacity (read from COM port) originally in mAh.
+- 17: capacity (read from COM port) originally in mAh.
+
+To extract the data do as follow
+Example.
+`list[0]`=to extract date....
 
 2. list_com_port: reads all the available com ports and shows the user and index list to choose the correct port to read data from.
 
@@ -44,3 +49,12 @@ It has the following integrated functions
 3. create_tables_and_triggers: creates the tables and triggers to save data into the postgreDB
 
 4. insert_cycle_data: save the data in the correct table within the postgreDB
+
+# Extracting data from postgreDB to a file format
+## if using docker container
+
+```
+docker exec -t <container_name> pg_dump -U <user> <databasen_name> > <file_name>.sql #This creates a SQL file from the data in the database
+
+docker cp <container_name>:/<file_name>.sql ./<new_file_name>.sql #This copies the data **outside** the container
+```
