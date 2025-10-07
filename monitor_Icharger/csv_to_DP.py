@@ -24,6 +24,7 @@ def data_reading(file:str):
     :param str file: take the file path. "C:/Users/...." MUST be .csv or .txt data type
     '''
     csv_path = Path(file)
+    # print(file)
     if not csv_path.exists():
         raise FileNotFoundError(f"{file} not found.")
     with csv_path.open('r', newline='', encoding='utf-8') as f:
@@ -41,21 +42,21 @@ def data_reading(file:str):
                 date= re.search(r'\d{4}-\d{2}-\d{2}', file)
                 headings.insert(0,'date')
             except ValueError:
-                pass
+                return "Nombre del archivo no tiene estructura correcta, archivo no leido "+ file
     #determine if the file is for charging, resting or discharging (from the file title)
         # Regex: look for “charg” or “discharg” or “rest”, case-insensitive
         pattern = r'^(\d+)(charging|discharging|rest)_(\d+)_(\d+)\.csv$'
         if "finish" in file.lower() or 'original' in file.lower():
-            return #not useful data
+            return f'Este archivo es de backup solamente, no se leera para ingresar datos a la DB {file}'
         file_name=file.lower().split('/')
         m = re.match(pattern, file_name[-1])
         if not m:
-            return f"Filename '{file_name[-1]}' does not match expected pattern"
+            return f"Filename: '{file_name[-1]}' does not match expected pattern"
         battery_number = int(m.group(1))
         cycle_stage = m.group(2)
         nominal_capacity = int(m.group(3))
         cycle_number = int(m.group(4))
-    
+        
     #extract the data in the desired order
         aux=0        
         while True: #extracting the remaining data
@@ -72,6 +73,7 @@ def data_reading(file:str):
                 aux+=1
             else:
                 break #finished reading data
+        return 'Archivo leido correctamente: '+ file
 
 def create_tables_and_triggers(conn):
     commands = [
@@ -231,13 +233,14 @@ if __name__ == '__main__':
     try:
         create_tables_and_triggers(conn)
         print("Tables and triggers created.")
+        # CSV_FILE_PATH=input("Ingrese la ruta del archivo a revisar: ")
+        CSV_FILE_PATH='/workspaces/prof.Vanessa/monitor_Icharger/test_data'
+        txt_files = [os.path.join(CSV_FILE_PATH, f) for f in os.listdir(CSV_FILE_PATH) if f.endswith('.csv') and os.path.isfile(os.path.join(CSV_FILE_PATH, f))]
+        for a in txt_files:
+            b=data_reading(a)
+            print(b)
     except Exception as e:
         print("Error:", e)
     finally:
         conn.close()
-    CSV_FILE_PATH=input("Ingrese la ruta del archivo a revisar: ")
-    txt_files = [os.path.join(CSV_FILE_PATH, f) for f in os.listdir(CSV_FILE_PATH) if f.endswith('.csv') and os.path.isfile(os.path.join(CSV_FILE_PATH, f))]
-    for a in txt_files:
-        b=data_reading(a)
-        # print(a)
   
