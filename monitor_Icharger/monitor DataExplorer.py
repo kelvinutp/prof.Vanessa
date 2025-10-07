@@ -99,12 +99,12 @@ def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list
                 ciclo+=1
             file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
         if not(file_name in dict_data):
-            dict_data[file_name]=[]
+            dict_data[file_name]=time.asctime(time.localtime())#register the time when the new file began recording
             base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts for the new stage
             state_file = open(file_name, "w")
             state_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
             state_file.flush()
-        dict_data[file_name].append(data)
+        # dict_data[file_name].append(data)
         estados_pasados.pop(0)
         
         #writing data to the specific file
