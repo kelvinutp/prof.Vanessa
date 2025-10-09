@@ -221,8 +221,8 @@ if __name__ == "__main__":
                                 database="mydb",
                                 user="myuser", 
                                 password="mypassword")
-        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10,conn=conn)
+        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,conn=conn)
     except:
         print("No hay conexiones de base de datos")
-        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10)
+        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True)
     time.sleep(5)
