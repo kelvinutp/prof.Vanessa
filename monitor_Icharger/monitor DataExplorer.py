@@ -215,11 +215,14 @@ if __name__ == "__main__":
     # Start reading serial data
     
     #database credential
-    conn = psycopg2.connect(host="localhost", 
-                            port=5432, 
-                            database="mydb",
-                            user="myuser", 
-                            password="mypassword")
-    
-    monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10)
+    try:
+        conn = psycopg2.connect(host="localhost", 
+                                port=5432, 
+                                database="mydb",
+                                user="myuser", 
+                                password="mypassword")
+        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10,conn=conn)
+    except:
+        print("No hay conexiones de base de datos")
+        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,timeout_seconds=10)
     time.sleep(5)
