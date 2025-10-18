@@ -1,7 +1,12 @@
 import subprocess
 import sys
 
-required_packages=['pyserial==3.5','serial==0.0.97','psycopg2-binary','psycopg2-binary','ipython-sql']
+required_packages=['pyserial==3.5',
+                    'serial==0.0.97',
+                    'psycopg2-binary',
+                    'matplotlib==3.10.3',
+                    'ipython-sql',
+                    'pandas ==2.3.1']
 
 def install_package(package):
     """Installs the package using pip"""
