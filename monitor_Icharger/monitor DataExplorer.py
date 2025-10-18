@@ -238,4 +238,4 @@ if __name__ == "__main__":
         print("No hay conexiones de base de datos")
         monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True)
     finally:
-        time.sleep(60)
+        input("Presione la tecla ENTER para salir")
