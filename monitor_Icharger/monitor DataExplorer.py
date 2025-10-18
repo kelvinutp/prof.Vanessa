@@ -155,7 +155,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
                     if data:
                         diff=str(abs(base_time-datetime.now()))
                         output = f"{timestamp};{diff};{data}"
-                        #print(output)
+                        print(output)
                         
                         data,estado=extract_columns(output,columns_to_extract)
                         if estados_pasados==['finished','finished','finished','finished']:
@@ -189,6 +189,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
     finally:
         if log_file:
             log_file.close()
+        #show an overview of the data
         for y,z in dict_data.items():
             print(f'Timestamp: {z} \tFile:{y}')
     return
@@ -228,11 +229,19 @@ if __name__ == "__main__":
     
     #database credential
     try:
-        conn = psycopg2.connect(host="localhost", 
-                                port=5432, 
-                                database="mydb",
-                                user="myuser", 
-                                password="mypassword")
+        a="/workspaces/prof.Vanessa/monitor_Icharger/postgreDB_credential.txt"
+        credentials = {}
+        with open(a, "r") as file:
+            for line in file:
+                if "=" in line:
+                    key, value = line.strip().split("=", 1)
+                    credentials[key] = value
+
+        conn = psycopg2.connect(host=credentials["host"], 
+                            port=credentials["port"], 
+                            database=credentials["database"],
+                            user=credentials["user"], 
+                            password=credentials["password"])
         monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,conn=conn)
     except:
         print("No hay conexiones de base de datos")
