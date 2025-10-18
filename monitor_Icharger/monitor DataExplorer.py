@@ -82,7 +82,7 @@ def insert_cycle_data(conn, cycle: str, data: list):
     conn.commit()
 
 
-def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list,dict_data:dict,conn=''):
+def save_file(estado,bateria,capacidad,ciclo,folder,data,base_time,estados_pasados:list,dict_data:dict,conn=''):
     '''
     Function for saving the data file (.csv)
     By data analisis, each current state is compared to the previous four (4) states. 
@@ -92,12 +92,12 @@ def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list
     #determine the correct battery state (charging, resting, discharging) to save data to
     if len(estados_pasados)>4:
         if all(x==estado for x in estados_pasados):
-            file_name=f"{bateria}{estado}_{capacidad}_{ciclo}.csv"
+            file_name=f"{folder}/{bateria}{estado}_{capacidad}_{ciclo}.csv"
         else:
             most_common_elem, count = Counter(estados_pasados).most_common(1)[0]
             if most_common_elem=="charging" and count==3 and estado=='charging':
                 ciclo+=1
-            file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
+            file_name=f"{folder}/{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
         if not(file_name in dict_data):
             dict_data[file_name]=time.asctime(time.localtime())#register the time when the new file began recording
             base_time=datetime.now() #get the time when the data recording starts for the new stage
@@ -127,14 +127,14 @@ def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list
     return ciclo,base_time
         
 
-def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
+def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
     try:
         with serial.Serial(port, baudrate, timeout=1) as ser:
             print(f"Monitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
             base_time=datetime.now() #captures the time when data begins
             
             if log_to_file:
-                log_file = open(f"data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
+                log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
                 log_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
                 log_file.flush()
             else:
@@ -149,10 +149,10 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
 
             #data recording
             while True:
+                timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
                 if ser.in_waiting > 0:
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
-                        timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
                         diff=str(abs(base_time-datetime.now()))
                         output = f"{timestamp};{diff};{data}"
                         #print(output)
@@ -189,6 +189,9 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
     finally:
         if log_file:
             log_file.close()
+        for y,z in dict_data.items():
+            print(f'Timestamp: {z} \tFile:{y}')
+    return
 
 if __name__ == "__main__":
     # List available COM ports before starting the data reading
@@ -208,10 +211,19 @@ if __name__ == "__main__":
         capacidad=input("Indique la capacidad de la bateria: ")
         ciclo=int(input("Indique el primer ciclo de la bateria (Debe ser un numero entero): "))
         print(f"El nombre del archivo se vera de la siguiente manera: {bateria}_{capacidad}_{ciclo}.csv")
-        c=input("Confirme que el puerto seleccionado es correcto (Y/N): ")
+        c=input("Confirme que el nombre del archivo es correcto (Y/N): ")
         if c.upper()=="Y":
             confirm=True
     
+    #folder to save data
+    confirm=False
+    while not(confirm):
+        folder=input("Inserte la direccion del folder donde desea guardar los datos: ")
+        print(f'Los archivos generados se guardaran en la siguiente carpeta: {folder}')
+        c=input("Confirme que la carpeta es correcta (Y/N): ")
+        if c.upper()=="Y":
+            confirm=True
+        
     # Start reading serial data
     
     #database credential
@@ -225,4 +237,5 @@ if __name__ == "__main__":
     except:
         print("No hay conexiones de base de datos")
         monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True)
-    time.sleep(5)
+    finally:
+        time.sleep(60)
