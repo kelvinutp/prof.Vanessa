@@ -100,7 +100,7 @@ def save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados:list
             file_name=f"{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
         if not(file_name in dict_data):
             dict_data[file_name]=time.asctime(time.localtime())#register the time when the new file began recording
-            base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts for the new stage
+            base_time=datetime.now() #get the time when the data recording starts for the new stage
             state_file = open(file_name, "w")
             state_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
             state_file.flush()
@@ -131,7 +131,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
     try:
         with serial.Serial(port, baudrate, timeout=1) as ser:
             print(f"Monitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
-            base_time=time.strftime("%Y-%m-%d; %H:%M:%S") #get the time when the data recording starts
+            base_time=datetime.now() #captures the time when data begins
             
             if log_to_file:
                 log_file = open(f"data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
@@ -153,7 +153,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,port='COM3', baudrate=9600, log_
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
                         timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
-                        diff=str(abs(base_time-timestamp))
+                        diff=str(abs(base_time-datetime.now()))
                         output = f"{timestamp};{diff};{data}"
                         #print(output)
                         
