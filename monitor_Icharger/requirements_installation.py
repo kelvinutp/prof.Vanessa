@@ -16,20 +16,6 @@ def install_package(package):
     """Installs the package using pip"""
     subprocess.check_call([sys.executable, '-m', 'pip','install',package])
 
-def install_chocolatey(): 
-    """Installs chocolatey package manager in windows machines
-    """    
-    command = r"""powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" """
-    try:
-        subprocess.run(
-            command,
-            shell=True,
-            check=True
-        )
-        print("Chocolatey installed successfully.")
-    except subprocess.CalledProcessError as e:
-        print("Failed to install Chocolatey.")
-
 def check_and_install_dependencies(packages):
     """Checks if packages are installed, installs them if not"""
     for package in packages:
@@ -40,24 +26,18 @@ def check_and_install_dependencies(packages):
             print(f'{package} not found. Installing...')
             install_package(package)
             print(f'{package} has been installed.')
-    if platform.system()=='Windows':
-        try:
-            subprocess.run(
-                ["choco", "-v"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True
-            )
-        except:
-            install_chocolatey()
     return
 
 def check_dependencies(packages):
     """Checks if packages are installed, installs them if not"""
     for package in packages:
+        if platform.system()=="Windows":
+            command=f'pip list | find /I"{package}"'
+        else:
+            command=f"pip list | grep {package}"
         try:
             result = subprocess.run(
-                f"pip list | grep {package}",
+                command,
                 shell=True,
                 check=True,
                 stdout=subprocess.PIPE,
@@ -71,14 +51,19 @@ def check_dependencies(packages):
     return
 
 def db_check():
+    #checking for postgreDB
     try:
         subprocess.run(["psql", "--version"], check=True, capture_output=True)
         print("PostgreSQL client (psql) is installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(f"{RED}PostgreSQL client (psql) is not found in the system's PATH.{RESET}")
-        if platform.system()=="Windows":
-            subprocess.run(["choco", "install", "postgresql", "-y"], check=True)
-            db_check() #checks if the postgredb was installed
+    
+    #checking com0com for creating a pair of virtual COMports
+    try:
+        output = subprocess.check_output(['driverquery'], stderr=subprocess.DEVNULL, text=True)
+        print(f'com0com in {output.lower()}')
+    except Exception:
+        print(f'{RED}COM0COM is not installed, not being able to connect to DataExplorer at the moment{RESET}')
     return
 
 if __name__=='__main__':
