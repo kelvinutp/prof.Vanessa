@@ -67,8 +67,8 @@ def db_check():
     return
 
 if __name__=='__main__':
-    # check_and_install_dependencies(required_packages)
+    check_and_install_dependencies(required_packages)
     print("Checking the correct installation")
-    # check_dependencies(required_packages)
+    check_dependencies(required_packages)
     db_check()
     input("Presione la tecla ENTER para salir")
