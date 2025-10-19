@@ -15,30 +15,53 @@ ctypes.windll.user32.MessageBoxW(0, "Supervisor program successfully opened", "S
 
 
 # Function to extract selected columns
-def extract_columns(data, selected_columns,delimiter=';'):
+def extract_columns(data,delimiter=';'):
     '''
-    Extracts the intended data given the indeces in selected_columns
-    Determines which is the current state type.
+    Extracts the data read from the icharger.
+    Anything before the Icharger data is passed without any modification
+    The data from the icharger is filtered.
+    state=1 (charging, rest, discharging)
+    voltaje =4
+    current =5
+    capacidad =14
+    Args:
+        data (str): string of data that has combined the data from the icharger and additional data from the program
+        delimiter (str): The string used to separate the data.
+
+    Returns:
+        data (str): returns the data in string format, joined by the provided delimiter
+        estado (str): returns teh current battery stage (charging, rest, dischargin, finished)
     '''
-    columns = data.split(delimiter)  
+    aux=0
+    aux2=False
+    columns = data.split(delimiter)
     result=[]
-    for i in selected_columns:
-        if i==7: #voltage
-            result.append(str(int(columns[i])/1000))
-        elif i==8:#current
-            result.append(str(int(columns[i])/100))
-        else:
-            result.append(columns[i])
-    # result = [str(int(columns[i])/1000) if i==7 else columns[i] for i in selected_columns]
-    if result[3]=='1':
-        estado='charging'
-    elif result [3]=='2':
-        estado='discharging'
-    elif result [3]=='4':
-        estado='rest'
-    elif result[3]=='6':
-        estado='finished'
-    result[3]=estado
+    estado=None
+    for i in columns:
+        if '$' in i:
+            aux2=True
+        if aux2:#extrayendo data del icharger
+            if aux in [1,4,5,14]:
+                if aux==1: #battery stage
+                    if i=='1':
+                        estado='charging'
+                    elif i=="2":
+                        estado="discharging"
+                    elif i=="4":
+                        estado="rest"
+                    elif i=="6":
+                        estado="finished"
+                    result.append(estado)
+                elif aux ==4: #voltage
+                    result.append(str(int(i)/1000))
+                elif aux ==5: #current
+                    result.append(str(int(i)/100))
+                else:
+                    result.append(i)
+            aux+=1
+        else:#records anything that is before the data from the icharger
+            result.append(i)
+    # print(result)
     return delimiter.join(result),estado #return the data as string
 
 def list_com_ports():
@@ -145,7 +168,6 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
             #auxiliary runtime variables
             estados_pasados=[]
             dict_data={}
-            columns_to_extract=[0,1,2,4,7,8,17]#date, system_time,cycle_time, battery_state(charing/resting/discharging),voltage(V),current(mA),capacity(mAh)
 
             #data recording
             while True:
@@ -157,7 +179,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
                         output = f"{timestamp};{diff};{data}"
                         print(output)
                         
-                        data,estado=extract_columns(output,columns_to_extract)
+                        data,estado=extract_columns(output)
                         if estados_pasados==['finished','finished','finished','finished']:
                             print("finished cicles \nclosing program")
                             print(a.split(';')[0])
