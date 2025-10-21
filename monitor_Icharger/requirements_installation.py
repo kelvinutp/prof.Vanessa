@@ -1,9 +1,9 @@
 import subprocess
 import sys
-import platform
+import platform #to check the working operating system
+import colorama #to paint the output on the terminal
 
-RED = "\033[31m"
-RESET = "\033[0m"
+colorama.init(autoreset=True)
 
 required_packages=['pyserial',
                     'serial',
@@ -46,7 +46,7 @@ def check_dependencies(packages):
             )
             print(f"{package} installed correctly")
         except subprocess.CalledProcessError as e:
-            print(f"{RED}Command failed with error:\n {e.stderr}{RESET}")
+            print(f"{colorama.Fore.RED}Command failed with error:\n {e.stderr}")
 
     return
 
@@ -56,14 +56,14 @@ def db_check():
         subprocess.run(["psql", "--version"], check=True, capture_output=True)
         print("PostgreSQL client (psql) is installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print(f"{RED}PostgreSQL client (psql) is not found in the system's PATH.{RESET}")
+        print(f"{colorama.Fore.RED}PostgreSQL client (psql) is not found in the system's PATH.")
     
     #checking com0com for creating a pair of virtual COMports
     try:
-        output = subprocess.check_output(['driverquery'], stderr=subprocess.DEVNULL, text=True)
+        output = subprocess.run(['driverquery|find \\I "com0com"'], shell=True, check=True, capture_output=True)
         print(f'com0com in {output.lower()}')
     except Exception:
-        print(f'{RED}COM0COM is not installed, not being able to connect to DataExplorer at the moment{RESET}')
+        print(f'{colorama.Fore.RED}COM0COM is not installed, not being able to connect to DataExplorer at the moment')
     return
 
 if __name__=='__main__':
