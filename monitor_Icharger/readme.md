@@ -103,6 +103,8 @@ The user inputs the following information
 4. Battery starting cycle number
 5. Path to folder to which save the data
 6. (optional)txt file with the postgreDB credentials
+
+
 ![first screen](./first_screen.jpeg)
 
 **Second Screen: Status screen**
