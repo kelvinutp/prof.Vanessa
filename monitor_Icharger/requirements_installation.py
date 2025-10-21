@@ -5,12 +5,12 @@ import colorama #to paint the output on the terminal
 
 colorama.init(autoreset=True)
 
-required_packages=['pyserial',
-                    'serial',
+required_packages=[ 'serial',
                     'psycopg2-binary',
                     'ipython-sql',
                     'pandas',   
-                    'matplotlib']
+                    'matplotlib',
+                    'tkinter']
 
 def install_package(package):
     """Installs the package using pip"""
