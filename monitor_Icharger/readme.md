@@ -9,7 +9,7 @@ Testing devices
 ## Ｓoftware
 
 1. [Data Explorer Download](https://www.nongnu.org/dataexplorer/download.html)
-   - [Data Explorer Datasheet](https://download-mirror.savannah.gnu.org/releases/dataexplorer/DataExplorer%20-%20Users%20Guide.pdf)
+   - [Data Explorer official documentation](https://download-mirror.savannah.gnu.org/releases/dataexplorer/DataExplorer%20-%20Users%20Guide.pdf)
 
 ## Raw Data format from Icharger
 
@@ -36,8 +36,9 @@ Sample data can be viewed from [this file](./test_data/data.csv)
 
 Pending parameters to discover/establish relationship. 
 - Temperature
-- Power
-- Energy
+Similar repositories have been found, yet to be tested:
+- [icharger_serial_decoder repository](https://github.com/alistairmackenzie/icharger_serial_decoder/): This has the most similar data structure to the one empirically discovered in this trial
+- [icharger-X8-log-parser](https://github.com/digimer/iCharger-X8-Log-Parser) This is also a serial log parser, yet the data structure is much larger than the one obtained for this repository and testing.
 
 # Requirements to run this programas
 - Python 3. [Link to download](https://www.python.org/downloads/)
