@@ -1,5 +1,17 @@
 Codes and sample data related to Icharger battery cycles
+# Devices
 
+Data is feed from [Junsi Icharger 106](https://www.icharger.eu/junsi-icharger-106b-250w-10a-lipo-6s-p-203.html)
+
+## Raw Data format from Icharger
+
+This data was obtained from reading the serial port and inserting the data directly into a CSV file
+`
+$1;1;;12000;4190;7;0;0;0;0;0;0;328;0;6;40
+`\
+Splitting it by ";" the following data structure was found:
+- `$1` : unknown. It was used to determine the beggining of the data string
+- `1`: 
 # Usage
 
 [Reading Data from serial port](./monitor%20DataExplorer.py)
