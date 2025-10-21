@@ -9,7 +9,7 @@ Testing devices
 ## Ｓoftware
 
 1. [Data Explorer Download](https://www.nongnu.org/dataexplorer/download.html)
-   - [Data Explorer Datasheet] (https://download-mirror.savannah.gnu.org/releases/dataexplorer/DataExplorer%20-%20Users%20Guide.pdf)
+   - [Data Explorer Datasheet](https://download-mirror.savannah.gnu.org/releases/dataexplorer/DataExplorer%20-%20Users%20Guide.pdf)
 
 ## Raw Data format from Icharger
 
