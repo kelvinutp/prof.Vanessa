@@ -2,7 +2,7 @@ Codes and sample data related to Icharger battery cycles
 # Devices and programs
 ## Devices
 Testing devices
-1. [iCharger 106B (Junsi) charger/discharger](https://www.icharger.pl/manuals/106B_en.pdf) 
+1. [iCharger 106B (Junsi) charger/discharger Datasheet](https://www.icharger.pl/manuals/106B_en.pdf) 
 
 2. [iCharger 208 (Junsi) charger/discharger Datasheet](https://www.icharger.pl/manuals/208B_en.pdf)
 
@@ -33,7 +33,7 @@ Sample data can be viewed from [this file](./test_data/data.csv)
 |14|`6`|Battery capacity in (mAh). For the tests in this repository, this values rests itself in every battery stage.
 |15|`40`|Unknown|
 
-Pending parameters to discover/establish relationship. This parameters are supplied by the 
+Pending parameters to discover/establish relationship. 
 - Temperature
 - Power
 - Energy
@@ -41,15 +41,16 @@ Pending parameters to discover/establish relationship. This parameters are suppl
 # Requirements to run this programas
 - Python 3. [Link to download](https://www.python.org/downloads/)
 - PostgreDB [Link to download](https://www.postgresql.org/download/windows/)
+- **For testing purposes** com0com [Link to download](https://sourceforge.net/projects/com0com/)
 
 ## Programs and functionalities
 
-|Recommende order to run program|Program|Description|
+|Recommended order to run program|Program|Description|
 |---|---|---|
 |0|[requirements_installation.py](./requirements_installation.py)|Installs the python libraries needed to run the following programs<br>**Only need to run once**|
 |1|[csv_to_DP.py](./csv_to_DP.py)|Creates postgreDB tables, reads data from CSV files into the database|
-|2 <br>(no user interface)|[monitor DataExplorer.py](./monitor%20DataExplorer.py)|Reads the data from the Serial COM port and saves it into csv files. If DB credentials provided, it can also saves the data into the database <br>**This program has no graphical interface**|
-|2 <br> (with user interface)|[monitor GUI.py](./monitor%20GUI.py)|Same functionalities as monitor DataExplorer, but added graphical user interface (GUI)|
+|2 <br>(no graphical user interface GUI)|[monitor DataExplorer.py](./monitor%20DataExplorer.py)|Reads the data from the Serial COM port and saves it into csv files. If DB credentials provided, it can also saves the data into the database <br>**This program has no graphical interface**|
+|2 <br> (with graphical user interface GUI)|[monitor GUI.py](./monitor%20GUI.py)|Same functionalities as monitor DataExplorer, but added graphical user interface (GUI)|
 |For testing purposes|[txt2COM.py](./txt2COM.py)|This programs helps to read the data from a txt or csv file and feeds it through a COM port to test the functionality of the monitor DataExplorer and/or monitor GUI
 
 ### Summary Explanation for the provided programs
@@ -64,6 +65,7 @@ Needed libraries and their use
 |psycopg2-binary|Using for stablishing communication with the postgreDB|
 |pandas|Used for large data processing|
 |matplotlib|Used for generating graphics|
+|tkinter|Used for generating the graphical user interface (GUI)|
 
 #### [csv_to_DP.py](./csv_to_DP.py)
 This program is used to generate the tables in the database to store the data. Also it reads the data from any CSV file and inserts it into the database when needed.
@@ -77,9 +79,9 @@ Generated tables
 Every table will have the following columns
 - date
 - time (this is a stopwatch like, used to measure the duration of the charging stage)
-- voltage
-- current
-- capacity
+- voltage (measured in V)
+- current (measured in A)
+- capacity (measured in mAh)
 - cycle number
 - nominal_capacity
 - mode (only on all_data table)
@@ -91,6 +93,20 @@ Reads the data directly from the com port and saves it into a CSV file in the lo
 
 #### [monitor GUI.py](./monitor%20GUI.py)
 Reads the data directly from the com port and saves it into a CSV file in the local computer for the desired folder path and local postgreDB (if credential are provided).
+This program generates two(2) screen
+
+**First screen: Input screen**
+The user inputs the following information 
+1. Selects the COM port from which to read the data from the icharger
+2. Battery number
+3. Battery nominal capacity
+4. Battery starting cycle number
+5. Path to folder to which save the data
+6. (optional)txt file with the postgreDB credentials
+
+**Second Screen: Status screen**
+
+Show a terminal like screen that prints the read information from the COM port
 
 # Extracting data from postgreDB to a file format
 ## if using docker container
