@@ -100,7 +100,6 @@ def insert_cycle_data(conn, cycle: str, data: list):
 
     # Execute with the data values
     with conn.cursor() as cur:
-        # print("data insertion",data)
         cur.execute(insert_template, data)
     conn.commit()
 
@@ -111,10 +110,10 @@ def save_file(estado,bateria,capacidad,ciclo,folder,data,base_time,estados_pasad
     By data analisis, each current state is compared to the previous four (4) states. 
     When the 5 states changes, then it's certain the battery power state has changed
     '''
-    estados_pasados.append(estado)
+    estados_pasados.append(estado.lower())
     #determine the correct battery state (charging, resting, discharging) to save data to
     if len(estados_pasados)>4:
-        if all(x==estado for x in estados_pasados):
+        if all(x==estado.lower() for x in estados_pasados):
             file_name=f"{folder}/{bateria}{estado}_{capacidad}_{ciclo}.csv"
         else:
             most_common_elem, count = Counter(estados_pasados).most_common(1)[0]
@@ -141,14 +140,14 @@ def save_file(estado,bateria,capacidad,ciclo,folder,data,base_time,estados_pasad
         
         #writing to DB
         #formato [date, cycle_time,voltage,current,capacity,file,cycle_number,nominal_capacity]
-        aux=data.split(';')
-        dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
-        try:
-            insert_cycle_data(conn,estado,dataDB)
-        except:
-            print('problemas con ingresar datos en la base de datos')
+        if conn!='':
+            aux=data.split(';')
+            dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
+            try:
+                insert_cycle_data(conn,estado,dataDB)
+            except:
+                print('problemas con ingresar datos en la base de datos')
     return ciclo,base_time
-        
 
 def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
     try:
@@ -158,7 +157,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
             
             if log_to_file:
                 log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                log_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+                log_file.write('date;system_time;cycle_time;data starting; cycle; empty; provided voltage; voltage (mV); current (cA); battery1; battery2; battery3; battery4; battery5; battery6; unknown0; unknown1; capacity (mAh); unknown2'+'\n')#setting column titles
                 log_file.flush()
             else:
                 log_file = None
@@ -182,13 +181,12 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
                         data,estado=extract_columns(output)
                         if estados_pasados==['finished','finished','finished','finished']:
                             print("finished cicles \nclosing program")
-                            print(a.split(';')[0])
                             break
                             
                         if log_to_file:
                             #original data
                             if log_file:
-                                log_file.write(data + '\n')
+                                log_file.write(output + '\n')
                                 log_file.flush()
                                 ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados,dict_data,conn=conn)
                         
@@ -258,6 +256,7 @@ if __name__ == "__main__":
                 if "=" in line:
                     key, value = line.strip().split("=", 1)
                     credentials[key] = value
+        file.close()
 
         conn = psycopg2.connect(host=credentials["host"], 
                             port=credentials["port"], 
