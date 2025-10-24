@@ -182,7 +182,8 @@ def save_file(estado:str,bateria:str,capacidad:str,ciclo:str,folder:str,data:str
             state_file.write(data+'\n')
             state_file.flush()
         
-        #writing to DB        
+        #writing to DB
+        #formato [date, cycle_time,voltage,current,capacity,file,cycle_number,nominal_capacity]
         if not(conn is None):
             aux=data.split(';')
             dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
