@@ -228,7 +228,7 @@ def monitor_serial_port(bateria:str,capacidad:str,ciclo:str,folder:str,port='COM
             #data recording
             while True:
             # for i in range(10): #for testing purposes
-                timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
+                timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
                 print(f'{timestamp}, {ser.in_waiting}')
                 if ser.in_waiting >0:
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -241,7 +241,7 @@ def monitor_serial_port(bateria:str,capacidad:str,ciclo:str,folder:str,port='COM
                         if estados_pasados==['finished','finished','finished','finished']:
                             print("finished cicles \nclosing program")
                             break
-                            
+                        #insert var to keep data while excel file is open
                         if log_to_file:
                             #original data
                             if log_file:
