@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime
 import psycopg2
 from psycopg2 import sql
+import os
 
 # MessageBox parameters:
 # 0 = OK button only
@@ -149,7 +150,7 @@ def save_file(estado,bateria,capacidad,ciclo,folder,data,base_time,estados_pasad
                 print('problemas con ingresar datos en la base de datos')
     return ciclo,base_time
 
-def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60):
+def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=9600, log_to_file=False, timeout_seconds=60,conn=''):
     try:
         with serial.Serial(port, baudrate, timeout=1) as ser:
             print(f"Monitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
@@ -170,7 +171,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
 
             #data recording
             while True:
-                timestamp = time.strftime("%Y-%m-%d; %H:%M:%S")
+                timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
                 if ser.in_waiting > 0:
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
@@ -188,7 +189,7 @@ def monitor_serial_port(bateria,capacidad,ciclo,folder,port='COM3', baudrate=960
                             if log_file:
                                 log_file.write(output + '\n')
                                 log_file.flush()
-                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,data,base_time,estados_pasados,dict_data,conn=conn)
+                                ciclo,base_time=save_file(estado,bateria,capacidad,ciclo,folder,data,base_time,estados_pasados,dict_data,conn=conn)
                         
                         last_activity_time = time.time()
 
@@ -239,7 +240,9 @@ if __name__ == "__main__":
     #folder to save data
     confirm=False
     while not(confirm):
-        folder=input("Inserte la direccion del folder donde desea guardar los datos: ")
+        folder=input("Inserte la direccion del folder donde desea guardar los datos (sino se inserta direccion, se guardaran en la carpeta actual): ")
+        if folder=='':
+            folder=os.getcwd()
         print(f'Los archivos generados se guardaran en la siguiente carpeta: {folder}')
         c=input("Confirme que la carpeta es correcta (Y/N): ")
         if c.upper()=="Y":
@@ -249,9 +252,9 @@ if __name__ == "__main__":
     
     #database credential
     try:
-        a="/workspaces/prof.Vanessa/monitor_Icharger/postgreDB_credential.txt"
+        db_credentials="/workspaces/prof.Vanessa/monitor_Icharger/postgreDB_credential.txt"
         credentials = {}
-        with open(a, "r") as file:
+        with open(db_credentials, "r") as file:
             for line in file:
                 if "=" in line:
                     key, value = line.strip().split("=", 1)
@@ -266,6 +269,6 @@ if __name__ == "__main__":
         monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True,conn=conn)
     except:
         print("No hay conexiones de base de datos")
-        monitor_serial_port(bateria,capacidad,ciclo,b[a],log_to_file=True)
+        monitor_serial_port(bateria,capacidad,ciclo,folder=folder,port=b[a],log_to_file=True)
     finally:
         input("Presione la tecla ENTER para salir")
