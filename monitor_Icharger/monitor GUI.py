@@ -211,6 +211,7 @@ def monitor_serial_port(bateria:str,capacidad:str,ciclo:str,folder:str,port='COM
     log_file=False
     estados_pasados=[]
     dict_data={}
+    temp_memory=[] #saves the raw data that was not recorded in CSV file
     try:
         with serial.Serial(port, baudrate, timeout=1) as ser:
             print(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
@@ -218,55 +219,50 @@ def monitor_serial_port(bateria:str,capacidad:str,ciclo:str,folder:str,port='COM
             
             if log_to_file:
                 log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                log_file.write('date;system_time;cycle_time;data starting; cycle; empty; provided voltage; voltage (mV); current (cA); battery1; battery2; battery3; battery4; battery5; battery6; unknown0; unknown1; capacity (mAh); unknown2'+'\n')#setting column titles
+                log_file.write('date;system_time;cycle_time;cycle_number;data starting; cycle; empty; provided voltage; voltage (mV); current (cA); battery1; battery2; battery3; battery4; battery5; battery6; unknown0; unknown1; capacity (mAh); unknown2'+'\n')#setting column titles
                 log_file.flush()
             else:
                 log_file = None
 
             last_activity_time = time.time()
-
+            manipulable_cycle=ciclo #variable for operating during runtime
             #data recording
             while True:
             # for i in range(10): #for testing purposes
                 timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
-                print(f'{timestamp}, {ser.in_waiting}')
+                print(f'{timestamp},{ser.in_waiting}')
                 if ser.in_waiting >0:
                     data = ser.readline().decode('utf-8', errors='ignore').strip()
                     if data:
                         diff=str(abs(base_time-datetime.now()))
-                        output = f"{timestamp};{diff};{data}"
+                        output = f"{timestamp};{diff};{manipulable_cycle};{data}"
                         print(output)
                         
                         modified_data,estado=extract_columns(output)
                         if estados_pasados==['finished','finished','finished','finished']:
                             print("finished cicles \nclosing program")
                             break
-                        #insert var to keep data while excel file is open
-                        if log_to_file:
-                            #original data
-                            if log_file:
-                                log_file.write(output + '\n')
-                                log_file.flush()
-                                ciclo,base_time,estados_pasados=save_file(estado=estado,
-                                                                          base_time=base_time,
-                                                                          bateria=bateria,
-                                                                          capacidad=capacidad,
-                                                                          ciclo=ciclo,
-                                                                          conn=conn,
-                                                                          data=modified_data,
-                                                                          data_history=dict_data,
-                                                                          folder=folder,
-                                                                          stages_history=estados_pasados
-                                                                          )
-                        
+                        try:
+                            if log_to_file:
+                                #original data
+                                if log_file:
+                                    log_file.write(output + '\n')
+                                    log_file.flush()
+                                    manipulable_cycle,base_time,estados_pasados=save_file(estado=estado,base_time=base_time,bateria=bateria,capacidad=capacidad,
+                                                                            ciclo=manipulable_cycle,conn=conn,data=modified_data,data_history=dict_data,
+                                                                            folder=folder,stages_history=estados_pasados)
+                                
+                        except PermissionError: #the CSV file is open by other program (excel)
+                            print("La data se esta guardando temporalmente mientras que analiza la data registrada en otro programa")
+                            temp_memory.append(output) #save the raw data from the COM port
                         last_activity_time = time.time()
                 else:
-                    print(timestamp, "No data received")
+                    print("No data received")
                 # Check for timeout
                 if time.time() - last_activity_time > timeout_seconds:
                     print(f"\nNo data received for {timeout_seconds} seconds. Exiting.")
                     if log_file:
-                        log_file.write(f"[{timestamp}] fin de transmision de datos" + '\n')
+                        log_file.write(f"{timestamp};fin de transmision de datos" + '\n')
                         log_file.flush()
                     break
 
@@ -277,6 +273,13 @@ def monitor_serial_port(bateria:str,capacidad:str,ciclo:str,folder:str,port='COM
     except KeyboardInterrupt:
         print("\nMonitoring stopped by user.")
     finally:
+        if len(temp_memory)>0:#adding data into raw data file 
+            print("Hudo data no guardada, adding the data into the raw data book")
+            log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "a")
+            for z in temp_memory:
+                log_file.write(z + '\n')
+                log_file.flush()
+
         if log_file:
             log_file.close()
         #show an overview of the data
@@ -412,6 +415,7 @@ def run_main_script():
         conn=conn
     )
     print("Main script finished.")
+    time.sleep(120)
     main_script_done = True    
     if not second_window:
         threading.Thread(target=open_second_window, daemon=True).start()
