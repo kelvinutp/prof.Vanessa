@@ -138,7 +138,7 @@ def insert_cycle_data(conn, cycle: str, data: list):
 
 
 # def save_file(estado:str,bateria:str,capacidad:str,ciclo:str,folder:str,data:str,base_time:datetime,stages_history:list,data_history:dict,conn=None):
-def save_file(mode:int, raw_data:str|list, ciclo:int, folder:str, bateria:str, capacidad:str,conn=None):
+def save_file(mode:int, raw_data:str|list, folder:str, bateria:str, capacidad:str, new_file:bool=False, conn=None):
     
     if mode==1: #creating raw data file
         print("creating raw data file")
@@ -150,53 +150,84 @@ def save_file(mode:int, raw_data:str|list, ciclo:int, folder:str, bateria:str, c
 
         return
     
-    elif mode==2: #saving data to file
+    elif mode==2: #saving data to file from string raw data
         print("saving data to file")
-        if isinstance(raw_data,str):
-            #save raw data
-            log_file.write(raw_data + '\n')
-            log_file.flush()
+        log_file.write(raw_data + '\n')
+        log_file.flush()
 
         #process data to save into independent file and postgredb
+        cicle_time=raw_data.split('$')[0].split(';')[-3]
+        ciclo=raw_data.split('$')[0].split(';')[-2]
         modified_data,estados=extract_columns(raw_data)
-        stages_history.append(estados)
+
+        #without creating a new container runtime variable, determine when to create a new file and when to write to existing
 
         #determine the correct battery state (charging, resting, discharging) to save data to
-        if len(stages_history)>4:
-            if all(x==estados for x in stages_history):
-                file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
-            else:
-                most_common_elem, count = Counter(stages_history).most_common(1)[0]
-                if most_common_elem=="charging" and count==3 and estados=='charging':
-                    ciclo+=1
-                file_name=f"{folder}\\{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
-            if not(file_name in data_history):
-                data_history[file_name]=time.asctime(time.localtime())#register the time when the new file began recording
-                base_time=time.time() #get the time when the data recording starts for the new stage
-                state_file = open(file_name, "w")
-                state_file.write('date;system_time;cycle_time;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
-                state_file.flush()
-            stages_history.pop(0)
+        # if len(stages_history)>4:
+        #     if all(x==estados for x in stages_history):
+        #         file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
+        #     else:
+        #         most_common_elem, count = Counter(stages_history).most_common(1)[0]
+        #         if most_common_elem=="charging" and count==3 and estados=='charging':
+        #             ciclo+=1
+        #         file_name=f"{folder}\\{bateria}{most_common_elem}_{capacidad}_{ciclo}.csv"
+        #     if not(file_name in data_history):
+        #         data_history[file_name]=time.asctime(time.localtime())#register the time when the new file began recording
+        #         state_file = open(file_name, "w")
+        #         state_file.write('date;system_time;cycle_time;cycle_number,battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+        #         state_file.flush()
+        #     stages_history.pop(0)
         
-            #writing data to the specific file
-            try:
-                state_file = open(file_name, "a")
-            except:
-                print("book is already open")
-            finally:
-                state_file.write(modified_data+'\n')
-                state_file.flush()
-        return ciclo, base_time
+        #     #writing data to the specific file
+        #     try:
+        #         state_file = open(file_name, "a")
+        #     except:
+        #         print("book is already open")
+        #     finally:
+        #         state_file.write(modified_data+'\n')
+        #         state_file.flush()
+        # return 
     #     #writing to DB
     #     #formato [date, cycle_time,voltage,current,capacity,file,cycle_number,nominal_capacity]
-        if not(conn is None):
-            aux=modified_data.split(';')
-            dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
-            try:
-                insert_cycle_data(conn,estados,dataDB)
-            except:
-                print('problemas con ingresar datos en la base de datos')
-    return 
+        # if not(conn is None):
+        #     aux=modified_data.split(';')
+        #     dataDB=[aux[0],aux[2],aux[4],aux[5],aux[6],file_name,ciclo,capacidad]
+        #     try:
+        #         insert_cycle_data(conn,estados,dataDB)
+        #     except:
+        #         print('problemas con ingresar datos en la base de datos')
+    
+    elif mode==3:#saving data to file from list raw data
+        log_file.writelines(raw_data)
+
+        #writing to individual files
+        aux=aux1=0
+        prev_estados=''
+        for a in raw_data:
+            aux=0
+            [aux:=aux+float(x) for x in a.split('$')[0].split(';')[-3].split(':')]
+            ciclo=a.split('$')[0].split(';')[-2]
+            modified_data,estados=extract_columns(a)
+            if prev_estados=='':
+                prev_estados=estados
+
+            if aux1>aux: #new cycle time
+                aux1=0
+                #creating new file
+                prev_estados=estados
+                file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
+                state_file = open(file_name, "w")
+                state_file.write('date;system_time;cycle_time;cycle_number,battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
+            else:
+                aux1=aux
+                #writing data to existing file 
+                file_name=f"{folder}\\{bateria}{prev_estados}_{capacidad}_{ciclo}.csv"
+                state_file = open(file_name, "a")
+            
+            state_file.write(modified_data+'\n')
+            state_file.flush()
+            
+        return 
 
 def monitor_serial_port(ciclo:str|int, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
     """Only Reads the data from Serial COM port and saves it into a local postgreDB and CSV files
@@ -221,9 +252,10 @@ def monitor_serial_port(ciclo:str|int, port='COM3', baudrate=9600,timeout_second
                 manipulable_cycle=ciclo #variable for operating during runtime
             else:
                 manipulable_cycle=int(ciclo) #variable for operating during runtime
-            print(log_to_file)
+            aux=aux1=0
             if log_to_file:#proceed to create the files to save raw data.
                 # save_file(mode=1, ciclo=manipulable_cycle)
+                print("Creating raw data file")
                 temp_memory=[]
 
             #data recording
@@ -237,18 +269,20 @@ def monitor_serial_port(ciclo:str|int, port='COM3', baudrate=9600,timeout_second
                         diff=abs(base_time-datetime.now())
                         output = f"{timestamp};{diff};{manipulable_cycle};{data}"
                         print(output)
-                        cycle_history.append(output.split('$')[1].split(';')[1])
                         if cycle_history[-5:]==['4','4','1','1','1']:
                             manipulable_cycle+=1
+                            new_file=True
                             base_time=datetime.now()
-                        elif cycle_history[-5:]==['6','6','6','6','6']:
+                        elif cycle_history[-5:]==['6','6','6','6','6']: #if received this information, it's finished 
                             break
-                        try: #trying to save the data
-                            if log_to_file:
-                                # save_file(mode=2,raw_data=output)
-                                print("saving data into the book")
-                        except PermissionError: #the CSV file is opened by another program
-                            temp_memory.append(output)
+
+                        # try: #trying to save the data
+                        #     if log_to_file:
+                        #         # save_file(mode=2,raw_data=output)
+                        #         print("saving data into the book")
+                        #           new_file=False
+                        # except PermissionError: #the CSV file is opened by another program
+                        #     temp_memory.append(f'{output}+\n')
                         last_activity_time = time.time()
                 else:
                     print("No data received")
@@ -268,7 +302,7 @@ def monitor_serial_port(ciclo:str|int, port='COM3', baudrate=9600,timeout_second
         if log_to_file:
             if len(temp_memory)>0:
                 print("There was data not saved because of Excel opened")
-                # save_file(mode=2)
+                # save_file(mode=3)
     return
 
 
