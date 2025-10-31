@@ -184,6 +184,15 @@ def save_file(mode:int, naming:list, raw_data:str|list='', last_duration:float=0
             state_file.write(modified_data+'\n')
             state_file.flush()
             state_file.close()
+
+            if not(conn is None):
+                aux=modified_data.split(';')
+                dataDB=[aux[0],aux[2],aux[5],aux[6],aux[7],file_name,ciclo,capacidad]
+                try:
+                    insert_cycle_data(conn,estados,dataDB)
+                except:
+                    print('problemas con ingresar datos en la base de datos')
+        return
        
     elif mode==3:#saving data to file from list raw data
         #writing to raw file data
@@ -214,21 +223,19 @@ def save_file(mode:int, naming:list, raw_data:str|list='', last_duration:float=0
                 file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
                 state_file = open(file_name, "a")
             
+            #trying to write to database
+            if not(conn is None):
+                aux=modified_data.split(';')
+                dataDB=[aux[0],aux[2],aux[5],aux[6],aux[7],file_name,ciclo,capacidad]
+
+                try:
+                    insert_cycle_data(conn,estados,dataDB)
+                except:
+                    print('problemas con ingresar datos en la base de datos')
             state_file.write(modified_data+'\n')
             state_file.flush()
             state_file.close()
-            
-    #writing to DB
-    #formato [date, cycle_time,voltage,current,capacity,file,cycle_number,nominal_capacity]            
-    if not(conn is None):
-        aux=modified_data.split(';')
-        dataDB=[aux[0],aux[2],aux[5],aux[6],aux[7],file_name,ciclo,capacidad]
-
-        try:
-            insert_cycle_data(conn,estados,dataDB)
-        except:
-            print('problemas con ingresar datos en la base de datos')
-    return
+        return
 
 def monitor_serial_port(ciclo:str|int, naming:list, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
     """Only Reads the data from Serial COM port and saves it into a local postgreDB and CSV files
