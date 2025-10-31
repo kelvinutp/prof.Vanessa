@@ -38,16 +38,16 @@ main_script_done = False
 second_window = None
 confirmation =0
 
-# #Redirect print to queue
-# class QueuePrinter:
-#     def write(self, msg):
-#         if msg.strip() != '':
-#             console_queue.put(msg+'\n')
+#Redirect print to queue
+class QueuePrinter:
+    def write(self, msg):
+        if msg.strip() != '':
+            console_queue.put(msg+'\n')
 
-#     def flush(self):
-#         pass
+    def flush(self):
+        pass
 
-# sys.stdout = QueuePrinter()
+sys.stdout = QueuePrinter()
 
 def list_com_ports():
     """
@@ -76,7 +76,6 @@ def extract_columns(data,delimiter=';',data_history:list=[]):
     Args:
         data (str): string of data that has combined the data from the icharger and additional data from the program
         delimiter (str): The string used to separate the data.
-
     Returns
     -------
     data (str)
@@ -370,7 +369,7 @@ def open_input_window(com_ports:list):
         entry.grid(row=i+2, column=1, pady=5)
         user_inputs[j]=entry
     
-    submit_button = ttk.Button(root, text=f"Submit + {confirmation}", command=on_submit)
+    submit_button = ttk.Button(root, text="Presionar dos (2) veces para iniciar", command=on_submit)
     submit_button.grid(row=len(user_inputs.keys())+2, column=0, columnspan=2)
 
     root.mainloop()
@@ -464,11 +463,11 @@ def run_main_script():
 # Launch
 if __name__ == '__main__':
     open_input_window(list_com_ports())
-    # threading.Thread(target=open_second_window, daemon=True).start()
-    # threading.Thread(target=run_main_script, daemon=True).start()
-    run_main_script()
+    threading.Thread(target=open_second_window, daemon=True).start()
+    threading.Thread(target=run_main_script, daemon=True).start()
+    # run_main_script()
 
     # Keep the main thread alive
-    # while not main_script_done:
-    #     time.sleep(1)
+    while not main_script_done:
+        time.sleep(1)
     print("done")
