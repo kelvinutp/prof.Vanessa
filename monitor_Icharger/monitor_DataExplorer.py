@@ -12,7 +12,7 @@ import os
 # 0 = OK button only
 # "Supervisor program successfully opened" = message text
 # "Supervisor" = title of the message box
-ctypes.windll.user32.MessageBoxW(0, "Supervisor program successfully opened", "Supervisor", 0)
+# ctypes.windll.user32.MessageBoxW(0, "Supervisor program successfully opened", "Supervisor", 0)
 
 
 # Function to extract selected columns
@@ -108,7 +108,6 @@ def insert_cycle_data(conn, cycle: str, data: list):
     with conn.cursor() as cur:
         cur.execute(insert_template, data)
     conn.commit()
-
 
 # def save_file(estado:str,bateria:str,capacidad:str,ciclo:str,folder:str,data:str,base_time:datetime,stages_history:list,data_history:dict,conn=None):
 def save_file(mode:int, naming:list, raw_data:str|list='', last_duration:float=0, stages_history:list=[], conn=None):
@@ -211,7 +210,6 @@ def save_file(mode:int, naming:list, raw_data:str|list='', last_duration:float=0
         log_file.close()
         return
             
-
 def monitor_serial_port(ciclo:str|int, naming:list, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
     """Only Reads the data from Serial COM port and saves it into a local postgreDB and CSV files
 
