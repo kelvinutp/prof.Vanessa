@@ -133,7 +133,6 @@ def insert_cycle_data(conn, cycle: str, data: list):
         cur.execute(insert_template, data)
     conn.commit()
 
-
 def save_file(estado:str,bateria:str,capacidad:str,ciclo:str,folder:str,data:str,base_time:datetime,stages_history:list,data_history:dict,conn=None):
     """Saves the information in a dedicated charging, rest, discharging battery file
 
@@ -320,7 +319,7 @@ def open_input_window(com_ports:list):
     dropdown['values'] = com_ports
     dropdown.grid(row=0, column=1, pady=5)
 
-    #creates input boxes    
+    #creates input boxes
     for i,j in enumerate(aux[2:]):
         ttk.Label(root, text=f"{j}: ").grid(row=i+1, column=0, pady=5)
         entry = tk.Entry(root)
