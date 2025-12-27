@@ -20,6 +20,11 @@ from datetime import datetime
 from collections import Counter
 import sql
 
+#for parallel processing
+import threading
+from threading import Event
+
+
 #Redirect print to queu
 # console_queue = queue.Queue()
 # class QueuePrinter:
@@ -35,7 +40,7 @@ import sql
 class App:
     def __init__(self,root):
         self.root = root
-        self.tabs=["+"]
+        self.tabs=["+","Bat 1"]
         self.info={} #key: tab name #value:{self.info[tab_name]:[com port, baud rate, "Bateria", "Capacidad nominal", "Ciclo", "Ruta de folder", "Credenciales de base de dato"}
         self.root.title("Monitor battery")
         self.root.geometry("700x400")
@@ -221,57 +226,59 @@ class App:
         try:
             with serial.Serial(port, baudrate, timeout=1) as ser:
                 print(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
-                base_time=datetime.now() #captures the time when data begins
                 
-                if log_to_file:
-                    log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-                    log_file.write('date;system_time;cycle_time;cycle_number;data starting; cycle; empty; provided voltage; voltage (mV); current (cA); battery1; battery2; battery3; battery4; battery5; battery6; unknown0; unknown1; capacity (mAh); unknown2'+'\n')#setting column titles
-                    log_file.flush()
-                else:
-                    log_file = None
-
+                # base_time=time.time() #captures the time when data begins
+                base_time=datetime.now() #captures the time when data begins
                 last_activity_time = time.time()
-                manipulable_cycle=ciclo #variable for operating during runtime
+                cycle_history=[]
+                stage=''
+                duration=0
+
+                if isinstance(ciclo,int):
+                    manipulable_cycle=ciclo #variable for operating during runtime
+                else:
+                    manipulable_cycle=int(ciclo) #variable for operating during runtime
+
+                if log_to_file:#proceed to create the files to save raw data.
+                    save_file(mode=1,naming=naming)
+                    print("Creating raw data file")
+                    temp_memory=[]
                 #data recording
                 while True:
-                # for i in range(10): #for testing purposes
+                # for i in range(100): #for testing purposes
                     timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
                     print(f'{timestamp},{ser.in_waiting}')
                     if ser.in_waiting >0:
                         data = ser.readline().decode('utf-8', errors='ignore').strip()
                         if data:
-                            diff=str(abs(base_time-datetime.now()))
+                            diff=abs(base_time-datetime.now())
+                            cycle_history.append(data.split(';')[1])
                             output = f"{timestamp};{diff};{manipulable_cycle};{data}"
                             print(output)
-                            
-                            modified_data,estado=self.__extract_columns(output)
-                            if estados_pasados==['finished','finished','finished','finished']:
-                                print("finished cicles \nclosing program")
+                            if cycle_history[-5:]==['4','4','1','1','1']:
+                                manipulable_cycle+=1
+                                base_time=datetime.now()
+                            elif cycle_history[-5:]==['6','6','6','6','6']: #if received this information, it's finished 
                                 break
-                            try:
+
+                            try: #trying to save the data
+                                stage=cycle_history[-5:]
                                 if log_to_file:
-                                    #original data
-                                    if log_file:
-                                        log_file.write(output + '\n')
-                                        log_file.flush()
-                                        manipulable_cycle,base_time,estados_pasados=self.__save_file(estado=estado,base_time=base_time,bateria=bateria,capacidad=capacidad,
-                                                                                ciclo=manipulable_cycle,conn=conn,data=modified_data,data_history=dict_data,
-                                                                                folder=folder,stages_history=estados_pasados)
-                                    
-                            except PermissionError: #the CSV file is open by other program (excel)
-                                print("La data se esta guardando temporalmente mientras que analiza la data registrada en otro programa")
-                                temp_memory.append(output) #save the raw data from the COM port
+                                    save_file(mode=2,raw_data=output, 
+                                            last_duration=duration, 
+                                            stages_history=stage, 
+                                            naming=naming, conn=conn)
+                                duration=0
+                                [duration:= duration+float(x) for x in output.split('$')[0].split(';')[-3].split(':')]
+                            except PermissionError: #the CSV file is opened by another program
+                                temp_memory.append(output)
                             last_activity_time = time.time()
                     else:
                         print("No data received")
                     # Check for timeout
                     if time.time() - last_activity_time > timeout_seconds:
                         print(f"\nNo data received for {timeout_seconds} seconds. Exiting.")
-                        if log_file:
-                            log_file.write(f"{timestamp};fin de transmision de datos" + '\n')
-                            log_file.flush()
                         break
-
                     time.sleep(0.1)  # avoid busy loop
 
         except serial.SerialException as e:
@@ -279,18 +286,17 @@ class App:
         except KeyboardInterrupt:
             print("\nMonitoring stopped by user.")
         finally:
-            if len(temp_memory)>0:#adding data into raw data file 
-                print("Hudo data no guardada, adding the data into the raw data book")
-                log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "a")
-                for z in temp_memory:
-                    log_file.write(z + '\n')
-                    log_file.flush()
-
-            if log_file:
-                log_file.close()
-            #show an overview of the data
-            for y,z in dict_data.items():
-                print(f'Timestamp: {z} \tFile:{y}')
+            print("Done monitoring Serial COM port")
+            serial.close()
+            # stop_event.set()
+            print("Last cycle: ",manipulable_cycle)
+            if log_to_file:
+                try:
+                    if len(temp_memory)>0:
+                        print("There was data not saved because of Excel opened")
+                        save_file(mode=3,raw_data=temp_memory, naming=naming ,conn=conn)
+                except:
+                    print("No temp memory stored")
         return
 
     ##********************************************
@@ -302,14 +308,14 @@ class App:
         # Print the name of the selected tab
         tab_name = self.notebook.tab(selected, "text")
         if tab_name=="+": #adding new tab
-            name="tab "+str(len(self.tabs))
+            name="Bat "+str(len(self.tabs))
             self.tabs.append(name)
             self.tabs[-1]= ttk.Frame(self.notebook)
             self.notebook.add(self.tabs[-1], text=name)
             # creating user inputs interfaces
             self.user_inputs(self.tabs[-1], name,self.__list_ports())
             
-            #showing the capture information             
+            #showing the capture information and start reading from monitor serial
             self.__running_program(self.tabs[-1],name)
         # else:
         #     print(f"User selected tab: {tab_name}")
@@ -383,55 +389,71 @@ class App:
         text_area['yscrollcommand'] = scrollbar.set
         
 
-        # def update_terminal():
-        #     while not console_queue.empty():
-        #         msg = console_queue.get_nowait()
-        #         text_area.config(state='normal')
-        #         text_area.insert(tk.END, msg)
-        #         text_area.see(tk.END)
-        #         text_area.config(state='disabled')
-        #     if app_running or not main_script_done:
-        #         second_window.after(100, update_terminal)
-        #     elif main_script_done:
-        #         text_area.config(state='normal')
-        #         text_area.insert(tk.END, "\n[Program Finished]")
-        #         text_area.config(state='disabled')
+        def update_terminal():
+            while not console_queue.empty():
+                msg = console_queue.get_nowait()
+                text_area.config(state='normal')
+                text_area.insert(tk.END, msg)
+                text_area.see(tk.END)
+                text_area.config(state='disabled')
+            if app_running or not main_script_done:
+                second_window.after(100, update_terminal)
+            elif main_script_done:
+                text_area.config(state='normal')
+                text_area.insert(tk.END, "\n[Program Finished]")
+                text_area.config(state='disabled')
         
         #trying to read database credential
-        # try:
-        #     a=self.info[tab_name]['dB credential file']
-        #     credentials = {}
-        #     with open(a, "r") as file:
-        #         for line in file:
-        #             if "=" in line:
-        #                 key, value = line.strip().split("=", 1)
-        #                 credentials[key] = value
-        #     file.close()
+        try:
+            a=self.info[tab_name]['dB credential file']
+            credentials = {}
+            with open(a, "r") as file:
+                for line in file:
+                    if "=" in line:
+                        key, value = line.strip().split("=", 1)
+                        credentials[key] = value
+            file.close()
 
-        #     conn = psycopg2.connect(host=credentials["host"], 
-        #                         port=credentials["port"], 
-        #                         database=credentials["database"],
-        #                         user=credentials["user"], 
-        #                         password=credentials["password"])
-        #     print("db credentials")
-        # except:
-        #     conn=None
-        #     print("no db credentials")
+            conn = psycopg2.connect(host=credentials["host"], 
+                                port=credentials["port"], 
+                                database=credentials["database"],
+                                user=credentials["user"], 
+                                password=credentials["password"])
+            print("db credentials")
+        except:
+            conn=None
+            print("no db credentials")
 
-        # # #reading COM port data
-        # # monitor_serial_port(
-        # #     bateria=self.info[tab_name]['Bateria'],
-        # #     baudrate=9600,
-        # #     capacidad=self.info[tab_name]['Capacidad nominal'],
-        # #     ciclo=self.info[tab_name]['Ciclo'],
-        # #     folder=self.info[tab_name]['Ruta de folder'],
-        # #     log_to_file=True,
-        # #     port=self.info[tab_name]['COM port'],
-        # #     timeout_seconds=10,
-        # #     conn=conn
-        # # )
-        # print("Main script finished.")
-        # time.sleep(120)
+        # #reading COM port data
+        self.threads = []
+        stop_event = Event()
+        t=threading.Thread(
+            target=monitor_serial_port,
+            args=(self.info[tab_name]["Ciclo"]
+                naming=[y for x,y in enumerate(self.info[tab_name].values()) if x<4]
+                port=self.info[tab_name]['COM port'],
+                baudrate=9600,
+                timeout_seconds=60,
+                log_to_file=True,
+                conn=conn
+                ),
+            daemon=True
+        )
+        threads.append(t)
+        t.start()
+        # monitor_serial_port(
+        #     bateria=self.info[tab_name]['Bateria'],
+        #     baudrate=9600,
+        #     capacidad=self.info[tab_name]['Capacidad nominal'],
+        #     ciclo=self.info[tab_name]['Ciclo'],
+        #     folder=self.info[tab_name]['Ruta de folder'],
+        #     log_to_file=True,
+        #     port=self.info[tab_name]['COM port'],
+        #     timeout_seconds=10,
+        #     conn=conn
+        # )
+        print("Main script finished.")
+        time.sleep(120)
 
 # Run the app
 root = tk.Tk()
