@@ -5,12 +5,10 @@ import colorama #to paint the output on the terminal
 
 colorama.init(autoreset=True)
 
-required_packages=[ 'serial',
-                    'psycopg2-binary',
-                    'ipython-sql',
-                    'pandas',   
-                    'matplotlib',
-                    'tkinter']
+# Clean up any extra whitespace in package names
+with open("./requirements.txt",'r') as f:
+    required_packages = f.readlines()
+required_packages = [pkg.strip() for pkg in required_packages if pkg.strip()]
 
 def install_package(package):
     """Installs the package using pip"""
@@ -26,28 +24,6 @@ def check_and_install_dependencies(packages):
             print(f'{package} not found. Installing...')
             install_package(package)
             print(f'{package} has been installed.')
-    return
-
-def check_dependencies(packages):
-    """Checks if packages are installed, installs them if not"""
-    for package in packages:
-        if platform.system()=="Windows":
-            command=f'pip list | find /I"{package}"'
-        else:
-            command=f"pip list | grep {package}"
-        try:
-            result = subprocess.run(
-                command,
-                shell=True,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            print(f"{package} installed correctly")
-        except subprocess.CalledProcessError as e:
-            print(f"{colorama.Fore.RED}Command failed with error:\n {e.stderr}")
-
     return
 
 def db_check():
@@ -68,7 +44,6 @@ def db_check():
 
 if __name__=='__main__':
     check_and_install_dependencies(required_packages)
-    print("Checking the correct installation")
-    check_dependencies(required_packages)
+    print("Checking the correct installation")    
     db_check()
     input("Presione la tecla ENTER para salir")
