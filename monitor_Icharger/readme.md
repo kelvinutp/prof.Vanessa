@@ -52,7 +52,8 @@ Similar repositories have been found, yet to be tested:
 |0|[requirements_installation.py](./requirements_installation.py)|Installs the python libraries needed to run the following programs<br>**Only need to run once**|
 |1|[csv_to_DP.py](./csv_to_DP.py)|Creates postgreDB tables, reads data from CSV files into the database|
 |2 <br>(no graphical user interface GUI)|[monitor DataExplorer.py](./monitor%20DataExplorer.py)|Reads the data from the Serial COM port and saves it into csv files. If DB credentials provided, it can also saves the data into the database <br>**This program has no graphical interface**|
-|2 <br> (with graphical user interface GUI)|[monitor GUI.py](./monitor%20GUI.py)|Same functionalities as monitor DataExplorer, but added graphical user interface (GUI)|
+|2 <br> (with graphical user interface GUI)|[monitor_GUI.py](./monitor_GUI.py)|Same functionalities as monitor DataExplorer, but added graphical user interface (GUI)|
+|2 <br> (For multiple ichargers)|[multiple_tabs.py](./multiple_tabs.py)|Makes reading multiple Icharger equipments using a tab interface|
 |For testing purposes|[txt2COM.py](./txt2COM.py)|This programs helps to read the data from a txt or csv file and feeds it through a COM port to test the functionality of the monitor DataExplorer and/or monitor GUI
 
 ### Summary Explanation for the provided programs

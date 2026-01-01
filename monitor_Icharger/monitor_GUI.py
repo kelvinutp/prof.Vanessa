@@ -140,15 +140,14 @@ def insert_cycle_data(conn, cycle: str, data: list):
     with conn.cursor() as cur:
         cur.execute(insert_template, data)
     conn.commit()
+    return
 
-
-# def save_file(estado:str,bateria:str,capacidad:str,ciclo:str,folder:str,data:str,base_time:datetime,stages_history:list,data_history:dict,conn=None):
 def save_file(mode:int, naming:list, raw_data:str|list='', last_duration:float=0, stages_history:list=[], conn=None):
     
-    folder=naming[0]
-    bateria=naming[1]
-    capacidad=naming[2]
-    ciclo=naming[3]
+    bateria=naming[0]
+    capacidad=naming[1]
+    ciclo=naming[2]
+    folder=naming[3]
 
     if mode==1: #creating raw data file
         log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
@@ -463,7 +462,7 @@ def run_main_script():
         )
     print("Main script finished.")
     time.sleep(10)
-    main_script_done = True    
+    main_script_done = True
     if not second_window:
         threading.Thread(target=open_second_window, daemon=True).start()
 
