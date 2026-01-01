@@ -462,7 +462,7 @@ def run_main_script():
         )
     print("Main script finished.")
     time.sleep(10)
-    main_script_done = True    
+    main_script_done = True
     if not second_window:
         threading.Thread(target=open_second_window, daemon=True).start()
 
