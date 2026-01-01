@@ -11,36 +11,20 @@ import psycopg2
 
 #library for redirecting print output to terminal 
 import queue
-import sys
 
 #time libraries
 import time
 from datetime import datetime
 
 from collections import Counter
+
+#library for database
 import sql
 
 #for parallel processing
 import threading
-from threading import Event
-
 import os
 
-#Redirect print to queu
-# console_queue = queue.Queue()
-# app_running = True
-# main_script_done = False
-# second_window = None
-
-# class QueuePrinter:
-#     def write(self, msg):
-#         if msg.strip() != '':
-#             console_queue.put(msg+'\n')
-
-#     def flush(self):
-#         pass
-
-# sys.stdout = QueuePrinter()
 
 class App:
     def __init__(self,root):
@@ -244,7 +228,7 @@ class App:
                 state_file.close()
             return
 
-    def monitor_serial_port(self, naming:list, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
+    def monitor_serial_port(self, naming:list, tab, queue, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
         """Reads and saves the data from Serial COM port and saves it into a local postgreDB and CSV files
 
         Args:            
@@ -259,7 +243,8 @@ class App:
         
         try:
             with serial.Serial(port, baudrate, timeout=1) as ser:
-                print(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
+                # print(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
+                queue.put(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
                 
                 base_time=datetime.now() #captures the time when data begins
                 last_activity_time = time.time()
@@ -277,17 +262,19 @@ class App:
                     print("Creating raw data file")
                     temp_memory=[]
                 #data recording
-                # while True:
-                for i in range(10): #for testing purposes
+                while True:
+                # for i in range(500): #for testing purposes
                     timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
                     # print(f'{timestamp},{ser.in_waiting}')
+                    queue.put(f'{timestamp},{ser.in_waiting}')
                     if ser.in_waiting >0:
                         data = ser.readline().decode('utf-8', errors='ignore').strip()
                         if data:
                             diff=abs(base_time-datetime.now())
                             cycle_history.append(data.split(';')[1])
                             output = f"{timestamp};{diff};{manipulable_cycle};{data}"
-                            print(output)
+                            # print(output)
+                            queue.put(output)
                             if cycle_history[-5:]==['4','4','1','1','1']:
                                 manipulable_cycle+=1
                                 base_time=datetime.now()
@@ -307,7 +294,8 @@ class App:
                                 temp_memory.append(output)
                             last_activity_time = time.time()
                     else:
-                        print("No data received")
+                        print("No data received ", port)
+                        queue.put("No data received "+ port)
                     # Check for timeout
                     if time.time() - last_activity_time > timeout_seconds:
                         # print(f"\nNo data received for {timeout_seconds} seconds. Exiting.")
@@ -329,15 +317,34 @@ class App:
                         self.__save_file(mode=3,raw_data=temp_memory, naming=naming ,conn=conn)
                 except:
                     print("No temp memory stored")
-            print("Exiting monitor serial function")
+            #stoping thread
+            self.info[tab]["stop"].set()
+            try:
+                self.info[tab]["thread"].join()
+            except:
+                print("problem with threading")
+            
+            for _ in range(5):
+                print("*"*100)
+                queue.put("******************")
+            print("Finished program", time.strftime("%Y-%m-%d;%H:%M:%S"))
+            queue.put("Finished program: "+ time.strftime("%Y-%m-%d;%H:%M:%S"))
+            for _ in range(5):
+                print("*"*100)
+                queue.put("******************")
         return
 
     ##********************************************
     ##GUI
     #*********************************************
+    def __update_tab_output(self, text_widget, data_queue):
+        while not data_queue.empty():
+            text_widget.insert("end", data_queue.get() + "\n")
+            text_widget.see("end")
+        text_widget.after(100, self.__update_tab_output, text_widget, data_queue)
+
     def on_tab_change(self, event):
         selected = self.notebook.select()
-
         # Print the name of the selected tab
         tab_name = self.notebook.tab(selected, "text")
         if tab_name=="+": #adding new tab
@@ -345,16 +352,16 @@ class App:
             self.tabs.append(name)
             self.tabs[-1]= ttk.Frame(self.notebook)
             self.notebook.add(self.tabs[-1], text=name)
+            self.notebook.select(self.tabs[-1])
             # creating user inputs interfaces
             self.user_inputs(self.tabs[-1], name,self.__list_ports())
             
             print("Updating user interface")
             #showing the capture information and start reading from monitor serial
-            self.__update_interface(self.tabs[-1],name)
-            time.sleep(5)
-            print("waiting before program start")
-            #starting running monitor serial
-            self.__run_main_script(name)
+            self.__second_interface(self.tabs[-1],name)           
+            
+            # #starting running monitor serial
+            # self.__run_main_script(name)
         else:
             print(f"User selected tab: {tab_name}")
 
@@ -406,7 +413,7 @@ class App:
         submit_button.grid(row=len(aux)+1, column=0, columnspan=2)
         root.mainloop()
 
-    def __update_interface(self, root, tab_name):
+    def __second_interface(self, root, tab_name):
         '''
         Updates the interface to label show the information on the battery and a terminal like to show the information read from the COM port
         '''
@@ -422,32 +429,10 @@ class App:
         terminal_frame = ttk.Frame(root)
         terminal_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        text_area = tk.Text(terminal_frame, height=20, wrap='word', state='disabled')
-        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar = ttk.Scrollbar(terminal_frame, command=text_area.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        text_area['yscrollcommand'] = scrollbar.set        
-
-        def update_terminal():
-            while not console_queue.empty():
-                msg = console_queue.get_nowait()
-                text_area.config(state='normal')
-                text_area.insert(tk.END, msg)
-                text_area.see(tk.END)
-                text_area.config(state='disabled')
-            if app_running or not main_script_done:
-                second_window.after(100, update_terminal)
-            elif main_script_done:
-                text_area.config(state='normal')
-                text_area.insert(tk.END, "\n[Program Finished]")
-                text_area.config(state='disabled')
-        
-        return
-
-    def __run_main_script(self, tab_name):
-        """Calls the mains script and generates the parallel reading
-        """
+        #text area
+        text = tk.Text(terminal_frame, height=15)
+        text.pack(expand=True, fill="both")
+    
         print('*'*100)
         print("Reading data for: ",self.info[tab_name]["Bateria"])
         
@@ -475,21 +460,30 @@ class App:
         naming=[y for x,y in enumerate(self.info[tab_name].values()) if x<5 and x>0]
         
         #reading COM port data
-        stop_event = Event()
+        q=queue.Queue()
+        stop_event = threading.Event()
+
         t=threading.Thread(
             target=self.monitor_serial_port,
-            args=(naming, self.info[tab_name]['COM port'], self.info[tab_name]['Baud rate']),
+            args=(naming, tab_name, q, 
+                  self.info[tab_name]['COM port'], 
+                  self.info[tab_name]['Baud rate'],60,True),
             daemon=True
         )
-        self.info[tab_name]["thread"]=t        
-        t.start()
-        print(self.info[tab_name])
-        print("*"*100)        
-        return
         
+        t.start()
+        text.insert("end", "Test data\n")
+        self.__update_tab_output(text, q)
 
-# Run the app
-root = tk.Tk()
+        # self.info[tab_name]["data"]=q
+        self.info[tab_name]["thread"]=t
+        self.info[tab_name]["stop"]=stop_event
 
-app = App(root)
-root.mainloop()
+        return   
+    
+if __name__ == '__main__':
+    # Run the app
+    root = tk.Tk()
+
+    app = App(root)
+    root.mainloop()
