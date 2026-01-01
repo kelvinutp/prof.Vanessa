@@ -353,10 +353,10 @@ class App:
             self.__update_interface(self.tabs[-1],name)
             time.sleep(5)
             print("waiting before program start")
-            #running monitor serial 
+            #starting running monitor serial
             self.__run_main_script(name)
-        # else:
-        #     print(f"User selected tab: {tab_name}")
+        else:
+            print(f"User selected tab: {tab_name}")
 
     def user_inputs(self, root, tab_name, com_ports:list):
         """creating user inputs interfaces
@@ -429,19 +429,19 @@ class App:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         text_area['yscrollcommand'] = scrollbar.set        
 
-        # def update_terminal():
-        #     while not console_queue.empty():
-        #         msg = console_queue.get_nowait()
-        #         text_area.config(state='normal')
-        #         text_area.insert(tk.END, msg)
-        #         text_area.see(tk.END)
-        #         text_area.config(state='disabled')
-        #     if app_running or not main_script_done:
-        #         second_window.after(100, update_terminal)
-        #     elif main_script_done:
-        #         text_area.config(state='normal')
-        #         text_area.insert(tk.END, "\n[Program Finished]")
-        #         text_area.config(state='disabled')
+        def update_terminal():
+            while not console_queue.empty():
+                msg = console_queue.get_nowait()
+                text_area.config(state='normal')
+                text_area.insert(tk.END, msg)
+                text_area.see(tk.END)
+                text_area.config(state='disabled')
+            if app_running or not main_script_done:
+                second_window.after(100, update_terminal)
+            elif main_script_done:
+                text_area.config(state='normal')
+                text_area.insert(tk.END, "\n[Program Finished]")
+                text_area.config(state='disabled')
         
         return
 
@@ -471,24 +471,20 @@ class App:
         except:
             conn=None
             print("no db credentials")
-        
+        #setting naming list [battery, capacity, cycle, folder]
         naming=[y for x,y in enumerate(self.info[tab_name].values()) if x<5 and x>0]
+        
         #reading COM port data
-        threads = []
         stop_event = Event()
         t=threading.Thread(
             target=self.monitor_serial_port,
             args=(naming, self.info[tab_name]['COM port'], self.info[tab_name]['Baud rate']),
             daemon=True
         )
-        threads.append(t)
+        self.info[tab_name]["thread"]=t        
         t.start()
-        print("After threading begin")
-        time.sleep(60)
-        print("Shutting thread down")
-        #pending to stop the thread for independent batteries
-
-        stop_event.set()
+        print(self.info[tab_name])
+        print("*"*100)        
         return
         
 
