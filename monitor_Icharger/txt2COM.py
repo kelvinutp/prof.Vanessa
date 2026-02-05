@@ -2,8 +2,8 @@ import serial
 import time
 
 # Configuration
-com_port = 'COM3'       # Change to your COM port
-baud_rate = 9600        # Change to your baud rate
+com_port = 'COM8'       # Change to your COM port
+baud_rate = 115200        # Change to your baud rate
 # file_path = r'C:\Users\user\Desktop\prof.Vanessa\monitor_Icharger\data_original_2_3800_1.csv'  # Path to your text file
 file_path = r'C:\Users\user\Desktop\prof.Vanessa\monitor_Icharger\test_data\data.csv'  # Path to your text file
 
