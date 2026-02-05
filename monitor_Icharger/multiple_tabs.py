@@ -157,11 +157,14 @@ def monitor_serial_thread(config, log_q, file_q, stop_event, TIMEOUT_SECONDS=10)
     naming = config["naming"]
     battery_name = naming[1]
 
+    #self selection
     baud = detect_baud(port)
-    if baud is None:
-        log_q.put(f"❌ Baud detection failed ({battery_name})")
-        return
+    # if baud is None:
+    #     log_q.put(f"❌ Baud detection failed ({battery_name})")
+    #     return
 
+    #manually selection   
+    baud=config["baud"]
     log_q.put(f"Baud detected: {baud}")
 
     last_state = None
@@ -267,12 +270,18 @@ class BatteryTab:
         btn_text = tk.StringVar(value="Confirmar datos")
         fields = ["Bateria","Capacidad nominal","Ciclo","Ruta de folder"]
 
+        #manual selection
+        # Available baud rates
+        baud_options = [9600, 19200, 38400, 57600, 115200, 230400]
+
         def on_submit():
             if btn_text.get() == "Confirmar datos":
                 btn_text.set("Iniciar grabacion de datos")
                 return
 
             self.info["COM port"] = dropdown_var.get()
+            self.info["Baud rate"] = int(baud_var.get())  # Save selected baud rate
+
             for f in fields:
                 val = entries[f].get()
                 if f=="Ruta de folder" and not val:
@@ -284,18 +293,26 @@ class BatteryTab:
 
             self._second_interface(root)
 
+        # COM port selection
         ttk.Label(root, text="COM port:").grid(row=0,column=0)
         dropdown_var = tk.StringVar()
         ttk.Combobox(root, values=self.com_ports, textvariable=dropdown_var).grid(row=0,column=1)
 
+        # Baud rate manual selection
+        ttk.Label(root, text="Baud rate:").grid(row=1, column=0)
+        baud_var = tk.StringVar(value=str(115200))  # default value
+        ttk.Combobox(root, values=baud_options, textvariable=baud_var).grid(row=1,column=1)
+
+        # Other fields
         entries = {}
         for i,name in enumerate(fields):
-            ttk.Label(root,text=name).grid(row=i+1,column=0,sticky="w")
+            ttk.Label(root,text=name).grid(row=i+2,column=0,sticky="w")  # shift rows by +2
             e = ttk.Entry(root,width=40)
-            e.grid(row=i+1,column=1)
+            e.grid(row=i+2,column=1)
             entries[name]=e
 
-        ttk.Button(root,textvariable=btn_text,command=on_submit).grid(row=len(fields)+1,column=0,columnspan=2,pady=10)
+        ttk.Button(root,textvariable=btn_text,command=on_submit).grid(row=len(fields)+2,column=0,columnspan=2,pady=10)
+
 
     def _second_interface(self, root):
         self.notebook.tab(root, text=self.info["Bateria"])
@@ -312,7 +329,7 @@ class BatteryTab:
             ("Ciclo", self.info["Ciclo"]),
             ("Ruta de folder", self.info["Ruta de folder"]),
             ("COM port", self.com_var),
-            ("Baud rate", self.baud_var)
+            ("Baud rate", self.baud_var)#manual selection
         ]
 
         for i,(label,value) in enumerate(info_items):
@@ -335,7 +352,8 @@ class BatteryTab:
 
         threading.Thread(
             target=monitor_serial_thread,
-            args=({"port": self.info["COM port"],"naming": naming}, self.log_q, self.file_q, self.stop_event),
+            # args=({"port": self.info["COM port"],"naming": naming}, self.log_q, self.file_q, self.stop_event),
+            args=({"port": self.info["COM port"],"baud":self.baud_var,"naming": naming}, self.log_q, self.file_q, self.stop_event), #manual selection
             daemon=True
         ).start()
 
