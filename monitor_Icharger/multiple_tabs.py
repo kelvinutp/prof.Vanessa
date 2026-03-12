@@ -15,7 +15,7 @@ import queue
 #time libraries
 import time
 from datetime import datetime
-
+import glob
 from collections import Counter
 
 #library for database
@@ -228,6 +228,72 @@ class App:
                 state_file.close()
             return
 
+    def final_checking(self, naming: list):
+
+            bateria = naming[0]
+            capacidad = naming[1]
+            ciclo = naming[2]
+            folder = naming[3]
+
+            raw_file = f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv"
+
+            if not os.path.exists(raw_file):
+                print("Raw file missing")
+                return
+
+            with open(raw_file, "r") as f:
+                raw_lines = f.readlines()
+
+            raw_rows = raw_lines[1:]
+            raw_count = len(raw_rows)
+
+            pattern = f"{folder}\\{bateria}*_{capacidad}_{ciclo}.csv"
+            processed_files = glob.glob(pattern)
+
+            processed_count = 0
+            processed_set = set()
+
+            for file in processed_files:
+
+                with open(file, "r") as f:
+                    lines = f.readlines()[1:]
+
+                    processed_count += len(lines)
+                    processed_set.update(lines)
+
+            print("Raw rows:", raw_count)
+            print("Processed rows:", processed_count)
+
+            if processed_count >= raw_count:
+                print("Files verified OK")
+                return
+
+            print("Repairing missing rows...")
+
+            for raw in raw_rows:
+
+                raw = raw.strip()
+
+                modified_data, estado = self.__extract_columns(raw)
+
+                line = modified_data + '\n'
+
+                if line not in processed_set:
+
+                    file_name = f"{folder}\\{bateria}{estado}_{capacidad}_{ciclo}.csv"
+
+                    if not os.path.exists(file_name):
+
+                        with open(file_name, "w") as f:
+                            f.write(
+                                'date;system_time;cycle_time;cycle_number;battery_state;voltage[V];current[mA];capacity[mAh]\n'
+                            )
+
+                    with open(file_name, "a") as f:
+                        f.write(line)
+
+            print("Final check completed")
+
     def monitor_serial_port(self, naming:list, tab, queue, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
         """Reads and saves the data from Serial COM port and saves it into a local postgreDB and CSV files
 
@@ -308,22 +374,40 @@ class App:
             print("\nMonitoring stopped by user.")
         finally:
             print("Done monitoring Serial COM port")
-            ser.close()            
-            print("Last cycle: ",manipulable_cycle)
+            try:
+                ser.close()
+            except:
+                pass
+
+            print("Last cycle:", manipulable_cycle)
+
             if log_to_file:
                 try:
-                    if len(temp_memory)>0:
-                        print("There was data not saved because of Excel opened")
-                        self.__save_file(mode=3,raw_data=temp_memory, naming=naming ,conn=conn)
+                    if len(temp_memory) > 0:
+                        print("Saving temp memory")
+                        self.__save_file(
+                            mode=3,
+                            raw_data=temp_memory,
+                            naming=naming,
+                            conn=conn
+                        )
                 except:
-                    print("No temp memory stored")
-            #stoping thread
+                    print("No temp memory")
+
+                # -------- FINAL CHECK HERE --------
+                try:
+                    self.final_checking(naming)
+                except Exception as e:
+                    print("Final check failed:", e)
+                # ----------------------------------
+
             self.info[tab]["stop"].set()
             try:
                 self.info[tab]["thread"].join()
             except:
                 print("problem with threading")
-            
+                pass
+
             for _ in range(5):
                 print("*"*100)
                 queue.put("******************")
