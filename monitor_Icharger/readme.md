@@ -31,7 +31,7 @@ Sample data can be viewed from [this file](./test_data/data.csv)
 |6 - 11|`0;0;0;0;0;0`|Corresponds to the Cell Voltage. This devices is able to manage up to 8 batteries|
 |12|`328`|Unknown|
 |13|`0`|Unknown|
-|14|`6`|Battery capacity in (mAh). For the tests in this repository, this values rests itself in every battery stage.
+|14|`6`|Battery capacity in (mAh). For the tests in this repository, this values resets itself in every battery stage.
 |15|`40`|Unknown|
 
 Pending parameters to discover/establish relationship. 
@@ -42,17 +42,18 @@ Similar repositories have been found, yet to be tested:
 
 # Requirements to run this programas
 - Python 3. [Link to download](https://www.python.org/downloads/)
+- PIP [Link to instructions](https://pip.pypa.io/en/stable/installation/)
 - PostgreDB [Link to download](https://www.postgresql.org/download/windows/)
 - **For testing purposes** com0com [Link to download](https://sourceforge.net/projects/com0com/)
 
 ## Programs and functionalities
 
-|Recommended order to run program|Program|Description|
+|Recommended order to run program|Program/File|Description|
 |---|---|---|
+|-1|[requirement.txt](./requirements.txt)|Contains all the libraries used by all the following programs
 |0|[requirements_installation.py](./requirements_installation.py)|Installs the python libraries needed to run the following programs<br>**Only need to run once**|
 |1|[csv_to_DP.py](./csv_to_DP.py)|Creates postgreDB tables, reads data from CSV files into the database|
 |2 <br>(no graphical user interface GUI)|[monitor DataExplorer.py](./monitor%20DataExplorer.py)|Reads the data from the Serial COM port and saves it into csv files. If DB credentials provided, it can also saves the data into the database <br>**This program has no graphical interface**|
-|2 <br> (with graphical user interface GUI)|[monitor_GUI.py](./monitor_GUI.py)|Same functionalities as monitor DataExplorer, but added graphical user interface (GUI)|
 |2 <br> (For multiple ichargers)|[multiple_tabs.py](./multiple_tabs.py)|Makes reading multiple Icharger equipments using a tab interface|
 |For testing purposes|[txt2COM.py](./txt2COM.py)|This programs helps to read the data from a txt or csv file and feeds it through a COM port to test the functionality of the monitor DataExplorer and/or monitor GUI
 
@@ -114,6 +115,64 @@ The user inputs the following information
 
 Show a terminal like screen that prints the read information from the COM port
 ![second screen](./second_screen.jpeg)
+
+#### Workflow diagram of program
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant U as User
+    participant UI as Python UI (Tkinter)
+    participant SM as Serial Monitor Thread
+    participant HW as Battery Charger Hardware
+    participant FW as FileWriter Thread
+    participant FS as File System
+
+    %% APP START
+    U ->> UI: Launch application
+    UI ->> UI: Initialize GUI, list COM ports
+    UI ->> FW: Start FileWriter thread
+
+    %% USER CONFIGURATION
+    U ->> UI: Select COM port, baud, battery info
+    U ->> UI: Click "Start Logging"
+
+    %% SERIAL SETUP
+    UI ->> SM: Start serial monitor thread
+    SM ->> HW: Open serial connection (COM + baud)
+    SM ->> UI: Log "Baud detected"
+
+    %% DATA ACQUISITION LOOP
+    loop While charger is active
+        HW -->> SM: Send serial data frame
+        SM ->> SM: Parse & timestamp data
+        SM ->> UI: Push log message (queue)
+        SM ->> FW: Queue raw data write task
+
+        %% DATA PROCESSING
+        FW ->> FW: Extract columns & battery state
+        FW ->> FS: Append raw CSV data
+        FW ->> FS: Write state-based CSV (charging / discharging / rest)
+
+        %% STATE CHANGE
+        SM ->> SM: Detect state transition
+        SM ->> UI: Log state change
+    end
+
+    %% FINISH OR TIMEOUT
+    alt Cycle finished
+        HW -->> SM: State = finished
+        SM ->> UI: Log "Cycle finished"
+        SM ->> HW: Close serial connection
+    else No data timeout
+        SM ->> UI: Log timeout warning
+        SM ->> HW: Close serial connection
+    end
+
+    %% APP CONTINUES
+    UI ->> U: Display final logs
+
+```
 # Extracting data from postgreDB to a file format
 ## if using docker container
 

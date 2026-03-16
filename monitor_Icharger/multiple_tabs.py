@@ -1,19 +1,10 @@
-#GUI libraries
 import tkinter as tk
 from tkinter import ttk
-
-#connection to COM ports
-import serial.tools.list_ports #to list com ports
-import serial #to establish communication with the selected com port
-
-#db library connection 
-import psycopg2
-
-#library for redirecting print output to terminal 
+import threading
 import queue
-
-#time libraries
+import serial
 import time
+import os
 from datetime import datetime
 import glob
 from collections import Counter
@@ -133,98 +124,39 @@ class App:
             cur.execute(insert_template, data)
         conn.commit()
 
-    def __save_file(self, mode:int, naming:list, raw_data:str|list='', last_duration:float=0, stages_history:list=[], conn=None):
-    
-        bateria=naming[0]
-        capacidad=naming[1]
-        ciclo=naming[2]
-        folder=naming[3]
-
-        if mode==1: #creating raw data file
-            log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "w")
-            log_file.write('date;system_time;cycle_time;cycle_number;data starting;cycle;empty;provided voltage;voltage (mV);current (cA);battery1;battery2;battery3;battery4;battery5;battery6;unknown0;unknown1;capacity (mAh);unknown2'+'\n')#setting column titles
-            log_file.flush()
-            log_file.close()
-            return
-        
-        elif mode==2: #saving data to file from string raw data
-            log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "a")
-            log_file.write(raw_data + '\n')
-            log_file.flush()
-            log_file.close()
-
-            ciclo=raw_data.split('$')[0].split(';')[-2]
-            # #process data to save into independent file and postgredb
-            cicle_time=0
-            [cicle_time:= cicle_time+float(x) for x in raw_data.split('$')[0].split(';')[-3].split(':')]
-            modified_data,estados=self.__extract_columns(raw_data,data_history=stages_history)
-
-            # #determine the correct battery state (charging, resting, discharging) to save data to
-            file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
-            if last_duration==0 or last_duration>cicle_time: #new file
-                state_file = open(file_name, "w")
-                state_file.write('date;system_time;cycle_time;cycle_number;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
-
-            # #writing data to the specific file
+    def run(self):
+        while not self.stop_event.is_set() or not self.file_q.empty():
             try:
-                state_file = open(file_name, "a")
-            except:
-                print("book is already open")
-            finally:
-                state_file.write(modified_data+'\n')
-                state_file.flush()
-                state_file.close()
+                task = self.file_q.get(timeout=0.1)
+            except queue.Empty:
+                continue
 
-                if not(conn is None):
-                    aux=modified_data.split(';')
-                    dataDB=[aux[0],aux[2],aux[5],aux[6],aux[7],file_name,ciclo,capacidad]
-                    try:
-                        self.__insert_cycle_data(conn,estados,dataDB)
-                    except:
-                        print('problemas con ingresar datos en la base de datos')
-            return
-        
-        elif mode==3:#saving data to file from list raw data
-            #writing to raw file data
-            log_file = open(f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv", "a")
+            try:
+                self._process_task(task)
+            except Exception as e:
+                print(f"{datetime.now()}-❌ FileWriter task failed: {e}")
+                traceback.print_exc()
 
-            aux=aux1=0
-            for a in raw_data:
-                #writing to raw data file 
-                log_file.write(a + '\n')
-                log_file.flush()
+    def _process_task(self, task):
+        mode = task.get("mode")
+        folder = task.get("folder")
+        bateria = task.get("bateria")
+        capacidad = task.get("capacidad")
+        ciclo = task.get("ciclo")
+        raw_data = task.get("raw_data","")
+        stages_history = task.get("stages_history",[])
+        last_duration = task.get("last_duration",0)
 
-                #writing to individual files
-                aux=0
-                [aux:=aux+float(x) for x in a.split('$')[0].split(';')[-3].split(':')]
-                ciclo=a.split('$')[0].split(';')[-2]
-                stages_history.append(a.split('$')[1].split(';')[1])
-                modified_data,estados=self.__extract_columns(a,data_history=stages_history[-5:])
-                file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
+        os.makedirs(folder, exist_ok=True)
+        raw_file = f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv"        
 
-                if aux1>aux: #new cycle time
-                    aux1=0
-                    #creating new file
-                    state_file = open(file_name, "w")
-                    state_file.write('date;system_time;cycle_time;cycle_number;battery_state;voltage[V];current[mA];capacity[mAh]'+'\n')#setting column titles
-                else:
-                    aux1=aux
-                    #writing data to existing file 
-                    file_name=f"{folder}\\{bateria}{estados}_{capacidad}_{ciclo}.csv"
-                    state_file = open(file_name, "a")
-                
-                #trying to write to database
-                if not(conn is None):
-                    aux=modified_data.split(';')
-                    dataDB=[aux[0],aux[2],aux[5],aux[6],aux[7],file_name,ciclo,capacidad]
-
-                    try:
-                        self.__insert_cycle_datainsert_cycle_data(conn,estados,dataDB)
-                    except:
-                        print('problemas con ingresar datos en la base de datos')
-                state_file.write(modified_data+'\n')
-                state_file.flush()
-                state_file.close()
+        if mode == 1:
+            with open(raw_file,"w") as f:
+                f.write(
+                    'date;system_time;cycle_time;cycle_number;data starting;cycle;empty;'
+                    'provided voltage;voltage (mV);current (cA);battery1;battery2;'
+                    'battery3;battery4;battery5;battery6;unknown0;unknown1;capacity (mAh);unknown2\n'
+                )
             return
 
     def final_checking(self, naming: list):
@@ -459,114 +391,144 @@ class App:
         global btn_text
         
         btn_text = tk.StringVar(value="Confirmar datos")
-        aux=["Bateria", "Capacidad nominal", "Ciclo", "Ruta de folder", "Credenciales de base de dato"]
+        fields = ["Bateria","Capacidad nominal","Ciclo","Ruta de folder"]
 
-        def on_submit():            
-            if btn_text.get()=="Confirmar datos":
+        #manual selection
+        # Available baud rates
+        baud_options = [9600, 19200, 38400, 57600, 115200, 230400]
+
+        def on_submit():
+            if btn_text.get() == "Confirmar datos":
                 btn_text.set("Iniciar grabacion de datos")
                 return
-            elif btn_text.get()=="Iniciar grabacion de datos":
-                self.info[tab_name]['COM port']=dropdown_var.get()
-                for y in aux:
-                    self.info[tab_name][y]=self.info[tab_name][y].get()
-                if self.info[tab_name][y]=='':
-                    self.info[tab_name][y]=os.getcwd()
-                
-                print(self.info[tab_name])
-                #reset windows for new elements
-                for a in root.winfo_children():
-                    a.destroy()
-                root.quit() 
-                return 
-        #dropbox for selecting comm port
-        ttk.Label(root, text="COM port:").grid(row=0, column=0, pady=5)
+
+            self.info["COM port"] = dropdown_var.get()
+            self.info["Baud rate"] = int(baud_var.get())  # Save selected baud rate
+
+            for f in fields:
+                val = entries[f].get()
+                if f=="Ruta de folder" and not val:
+                    val = os.getcwd()
+                self.info[f] = val
+
+            for w in root.winfo_children():
+                w.destroy()
+
+            self._second_interface(root)
+
+        # COM port selection
+        ttk.Label(root, text="COM port:").grid(row=0,column=0)
         dropdown_var = tk.StringVar()
-        dropdown = ttk.Combobox(root, textvariable=dropdown_var)
-        dropdown['values'] = com_ports
-        dropdown.grid(row=0, column=1, pady=5)
+        ttk.Combobox(root, values=self.com_ports, textvariable=dropdown_var).grid(row=0,column=1)
 
-        #creates input boxes
-        for i,j in enumerate(aux):
-            ttk.Label(root, text=f"{j}: ").grid(row=i+1, column=0, pady=5)
-            entry = tk.Entry(root)
-            entry.grid(row=i+1, column=1, pady=5)
-            self.info[tab_name][j]=entry
-        
-        submit_button = ttk.Button(root, textvariable=btn_text, command=on_submit)
-        submit_button.grid(row=len(aux)+1, column=0, columnspan=2)
-        root.mainloop()
+        # Baud rate manual selection
+        ttk.Label(root, text="Baud rate:").grid(row=1, column=0)
+        baud_var = tk.StringVar(value=str(115200))  # default value
+        ttk.Combobox(root, values=baud_options, textvariable=baud_var).grid(row=1,column=1)
 
-    def __second_interface(self, root, tab_name):
-        '''
-        Updates the interface to label show the information on the battery and a terminal like to show the information read from the COM port
-        '''
-        self.notebook.tab(root, text=self.info[tab_name]["Bateria"])
-        
-        top_frame = ttk.Frame(root)
-        top_frame.pack(side=tk.TOP, fill=tk.X)
-        #labels with information about the battery
-        for key, value in self.info[tab_name].items():
-            ttk.Label(top_frame, text=f"{key}: {value}").pack(anchor='w')
+        # Other fields
+        entries = {}
+        for i,name in enumerate(fields):
+            ttk.Label(root,text=name).grid(row=i+2,column=0,sticky="w")  # shift rows by +2
+            e = ttk.Entry(root,width=40)
+            e.grid(row=i+2,column=1)
+            entries[name]=e
 
-        #terminal space showing the information 
-        terminal_frame = ttk.Frame(root)
-        terminal_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        ttk.Button(root,textvariable=btn_text,command=on_submit).grid(row=len(fields)+2,column=0,columnspan=2,pady=10)
 
-        #text area
-        text = tk.Text(terminal_frame, height=15)
-        text.pack(expand=True, fill="both")
-    
-        print('*'*100)
-        print("Reading data for: ",self.info[tab_name]["Bateria"])
-        
-        # trying to read database credential
-        try:
-            a=self.info[tab_name]['dB credential file']
-            credentials = {}
-            with open(a, "r") as file:
-                for line in file:
-                    if "=" in line:
-                        key, value = line.strip().split("=", 1)
-                        credentials[key] = value
-            file.close()
 
-            conn = psycopg2.connect(host=credentials["host"], 
-                                port=credentials["port"], 
-                                database=credentials["database"],
-                                user=credentials["user"], 
-                                password=credentials["password"])
-            print("db credentials")
-        except:
-            conn=None
-            print("no db credentials")
-        #setting naming list [battery, capacity, cycle, folder]
-        naming=[y for x,y in enumerate(self.info[tab_name].values()) if x<5 and x>0]
-        
-        #reading COM port data
-        q=queue.Queue()
-        stop_event = threading.Event()
+    def _second_interface(self, root):
+        self.notebook.tab(root, text=self.info["Bateria"])
 
-        t=threading.Thread(
-            target=self.monitor_serial_port,
-            args=(naming, tab_name, q, 
-                  self.info[tab_name]['COM port'], 
-                  self.info[tab_name]['Baud rate'],60,True),
+        header = ttk.Frame(root)
+        header.pack(fill=tk.X,padx=5,pady=5)
+
+        self.baud_var = tk.StringVar(value="Detecting...")
+        self.com_var = tk.StringVar(value=self.info["COM port"])
+
+        info_items = [
+            ("Batería", self.info["Bateria"]),
+            ("Capacidad nominal", self.info["Capacidad nominal"]),
+            ("Ciclo", self.info["Ciclo"]),
+            ("Ruta de folder", self.info["Ruta de folder"]),
+            ("COM port", self.com_var),
+            ("Baud rate", self.baud_var)#manual selection
+        ]
+
+        for i,(label,value) in enumerate(info_items):
+            ttk.Label(header,text=f"{label}:",font=("Segoe UI",9,"bold")).grid(row=i,column=0,sticky="w",padx=(0,5))
+            if isinstance(value,tk.StringVar):
+                ttk.Label(header,textvariable=value).grid(row=i,column=1,sticky="w")
+            else:
+                ttk.Label(header,text=value,wraplength=600).grid(row=i,column=1,sticky="w")
+
+        ttk.Separator(root,orient="horizontal").pack(fill=tk.X,padx=5,pady=5)
+        terminal = tk.Text(root,height=15)
+        terminal.pack(fill=tk.BOTH,expand=True,padx=5,pady=5)
+
+        naming = [
+            self.info["Ruta de folder"],
+            self.info["Bateria"],
+            self.info["Capacidad nominal"],
+            self.info["Ciclo"]
+        ]
+
+        threading.Thread(
+            target=monitor_serial_thread,
+            # args=({"port": self.info["COM port"],"naming": naming}, self.log_q, self.file_q, self.stop_event),
+            args=({"port": self.info["COM port"],"baud":self.baud_var,"naming": naming}, self.log_q, self.file_q, self.stop_event), #manual selection
             daemon=True
-        )
-        
-        t.start()
-        text.insert("end", "Test data\n")
-        self.__update_tab_output(text, q)
+        ).start()
 
-        # self.info[tab_name]["data"]=q
-        self.info[tab_name]["thread"]=t
-        self.info[tab_name]["stop"]=stop_event
+        self._update_terminal(terminal)
 
-        return   
-    
-if __name__ == '__main__':
-    # Run the app
+    def _update_terminal(self, terminal):
+        while not self.log_q.empty():
+            msg = self.log_q.get()
+            terminal.insert(tk.END,msg+"\n")
+            terminal.see(tk.END)
+            # Update baud if detected
+            if "Baud detected:" in msg:
+                self.baud_var.set(msg.split(":")[-1].strip())
+        terminal.after(100,self._update_terminal,terminal)
+
+# ======================================================
+# -------------------- MAIN APP ------------------------
+# ======================================================
+
+class App:
+    def __init__(self, root):
+        root.title("Icharger Multi-Battery Logger")
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill="both",expand=True)
+
+        self.com_ports = list_com_ports()
+        self.battery_count = 0
+
+        # Single FileWriter thread
+        self.file_q = queue.Queue()
+        self.file_writer = FileWriter(self.file_q)
+        self.file_writer.start()
+
+        self.add_battery_tab()
+        self.plus_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.plus_tab,text="+")
+        self.notebook.bind("<<NotebookTabChanged>>",self.on_tab_changed)
+
+    def add_battery_tab(self):
+        self.battery_count += 1
+        BatteryTab(self.notebook,f"Battery {self.battery_count}",self.com_ports,self.file_q)
+
+    def on_tab_changed(self,event):
+        tab_id = event.widget.select()
+        if event.widget.tab(tab_id,"text") == "+":
+            self.notebook.forget(self.plus_tab)
+            self.add_battery_tab()
+            self.plus_tab = ttk.Frame(self.notebook)
+            self.notebook.add(self.plus_tab,text="+")
+            self.notebook.select(self.notebook.tabs()[-2])
+
+if __name__=="__main__":
     root = tk.Tk()
-
-    app = App(root)
+    App(root)
     root.mainloop()
