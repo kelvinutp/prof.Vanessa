@@ -6,6 +6,7 @@ import serial
 import time
 import os
 from datetime import datetime
+import glob
 from collections import Counter
 import serial.tools.list_ports
 import traceback
@@ -101,172 +102,237 @@ class FileWriter(threading.Thread):
                 )
             return
 
-        if mode == 2:
-            with open(raw_file,"a") as f:
-                f.write(raw_data+"\n")
+    def final_checking(self, naming: list):
 
-            try:
-                ciclo_val = raw_data.split('$')[0].split(';')[-2]
-                cycle_time = sum(float(x) for x in raw_data.split('$')[0].split(';')[-3].split(':'))
-            except Exception:
-                ciclo_val = ciclo
-                cycle_time = 0
+            bateria = naming[0]
+            capacidad = naming[1]
+            ciclo = naming[2]
+            folder = naming[3]
 
-            modified_data, estado = extract_columns(raw_data, data_history=stages_history)
-            state_file = f"{folder}/{bateria}{estado}_{capacidad}_{ciclo_val}.csv"
+            raw_file = f"{folder}/data_original_{bateria}_{capacidad}_{ciclo}.csv"
 
-            if last_duration == 0 or last_duration > cycle_time:
-                with open(state_file,"w") as f:
-                    f.write(
-                        'date;system_time;cycle_time;cycle_number;'
-                        'battery_state;voltage[V];current[mA];capacity[mAh]\n'
-                    )
+            if not os.path.exists(raw_file):
+                print("Raw file missing")
+                return
 
-            with open(state_file,"a") as f:
-                f.write(modified_data+"\n")
+            with open(raw_file, "r") as f:
+                raw_lines = f.readlines()
 
-# ======================================================
-# ---------------- SERIAL HELPERS ----------------------
-# ======================================================
+            raw_rows = raw_lines[1:]
+            raw_count = len(raw_rows)
 
-def list_com_ports():
-    ports = serial.tools.list_ports.comports()
-    return [port.device for port in ports]
+            pattern = f"{folder}\\{bateria}*_{capacidad}_{ciclo}.csv"
+            processed_files = glob.glob(pattern)
 
-COMMON_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400]
+            processed_count = 0
+            processed_set = set()
 
-def detect_baud(port):
-    for baud in COMMON_BAUDS:
+            for file in processed_files:
+
+                with open(file, "r") as f:
+                    lines = f.readlines()[1:]
+
+                    processed_count += len(lines)
+                    processed_set.update(lines)
+
+            print("Raw rows:", raw_count)
+            print("Processed rows:", processed_count)
+
+            if processed_count >= raw_count:
+                print("Files verified OK")
+                return
+
+            print("Repairing missing rows...")
+
+            for raw in raw_rows:
+
+                raw = raw.strip()
+
+                modified_data, estado = self.__extract_columns(raw)
+
+                line = modified_data + '\n'
+
+                if line not in processed_set:
+
+                    file_name = f"{folder}\\{bateria}{estado}_{capacidad}_{ciclo}.csv"
+
+                    if not os.path.exists(file_name):
+
+                        with open(file_name, "w") as f:
+                            f.write(
+                                'date;system_time;cycle_time;cycle_number;battery_state;voltage[V];current[mA];capacity[mAh]\n'
+                            )
+
+                    with open(file_name, "a") as f:
+                        f.write(line)
+
+            print("Final check completed")
+
+    def monitor_serial_port(self, naming:list, tab, queue, port='COM3', baudrate=9600,timeout_seconds=60, log_to_file=False, conn=None):
+        """Reads and saves the data from Serial COM port and saves it into a local postgreDB and CSV files
+
+        Args:            
+            naming (list): [0] Batery, [1] Capacity, [2] Cycle number, [3] folder
+            port (str, optional): COM port from which to read the data. Defaults to 'COM3'.
+            baudrate (int, optional): baudrate at which to read data from com port. Defaults to 9600.
+            log_to_file (bool, optional): Determines if data is to be saved in a file. Defaults to False.
+            timeout_seconds (int, optional): _description_. Defaults to 60.
+            conn (_type_, optional): Connection to postgreDB credentials. Defaults to None.
+        """
+        ciclo=int(naming[2])
+        
         try:
-            with serial.Serial(port, baud, timeout=0.5) as ser:
-                time.sleep(0.2)
-                for _ in range(5):
-                    line = ser.readline().decode(errors="ignore")
-                    if '$' in line and ';' in line:
-                        return baud
-        except serial.SerialException:
-            pass
-    return None
+            with serial.Serial(port, baudrate, timeout=1) as ser:
+                # print(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
+                queue.put(f"monitor_serial_port function:\nMonitoring {port} at {baudrate} baud. Timeout after {timeout_seconds} seconds of inactivity.")
+                
+                base_time=datetime.now() #captures the time when data begins
+                last_activity_time = time.time()
+                cycle_history=[]
+                stage=''
+                duration=0
 
-# ======================================================
-# ---------------- SERIAL MONITOR ----------------------
-# ======================================================
+                if isinstance(ciclo,int):
+                    manipulable_cycle=ciclo #variable for operating during runtime
+                else:
+                    manipulable_cycle=int(ciclo) #variable for operating during runtime
 
-def monitor_serial_thread(config, log_q, file_q, stop_event, TIMEOUT_SECONDS=10):
-    port = config["port"]
-    naming = config["naming"]
-    battery_name = naming[1]
+                if log_to_file:#proceed to create the files to save raw data.
+                    self.__save_file(mode=1,naming=naming)
+                    print("Creating raw data file")
+                    temp_memory=[]
+                #data recording
+                while True:
+                # for i in range(500): #for testing purposes
+                    timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
+                    # print(f'{timestamp},{ser.in_waiting}')
+                    queue.put(f'{timestamp},{ser.in_waiting}')
+                    if ser.in_waiting >0:
+                        data = ser.readline().decode('utf-8', errors='ignore').strip()
+                        if data:
+                            diff=abs(base_time-datetime.now())
+                            cycle_history.append(data.split(';')[1])
+                            output = f"{timestamp};{diff};{manipulable_cycle};{data}"
+                            # print(output)
+                            queue.put(output)
+                            if cycle_history[-5:]==['4','4','1','1','1']:
+                                manipulable_cycle+=1
+                                base_time=datetime.now()
+                            elif cycle_history[-5:]==['6','6','6','6','6']: #if received this information, it's finished 
+                                break
 
-    #self selection
-    baud = detect_baud(port)
-    # if baud is None:
-    #     log_q.put(f"❌ Baud detection failed ({battery_name})")
-    #     return
+                            try: #trying to save the data
+                                stage=cycle_history[-5:]
+                                if log_to_file:
+                                    self.__save_file(mode=2,raw_data=output, 
+                                            last_duration=duration, 
+                                            stages_history=stage, 
+                                            naming=naming, conn=conn)
+                                duration=0
+                                [duration:= duration+float(x) for x in output.split('$')[0].split(';')[-3].split(':')]
+                            except PermissionError: #the CSV file is opened by another program
+                                temp_memory.append(output)
+                            last_activity_time = time.time()
+                    else:
+                        print("No data received ", port)
+                        queue.put("No data received "+ port)
+                    # Check for timeout
+                    if time.time() - last_activity_time > timeout_seconds:
+                        # print(f"\nNo data received for {timeout_seconds} seconds. Exiting.")
+                        break
+                    time.sleep(0.1)  # avoid busy loop
 
-    #manually selection   
-    baud=config["baud"]
-    log_q.put(f"Baud detected: {baud}")
+        except serial.SerialException as e:
+            print(f"Serial error: {e}")
+        except KeyboardInterrupt:
+            print("\nMonitoring stopped by user.")
+        finally:
+            print("Done monitoring Serial COM port")
+            try:
+                ser.close()
+            except:
+                pass
 
-    last_state = None
-    cycle_history = []
-    duration = 0
-    temp_cycle=int(naming[3])
+            print("Last cycle:", manipulable_cycle)
 
-    # Initialize file original data
-    file_q.put({
-        "mode": 1,
-        "folder": naming[0],
-        "bateria": naming[1],
-        "capacidad": naming[2],
-        "ciclo": naming[3]
-    })
-    print(f"{datetime.now()}- starting monitor serial function - {battery_name}")
+            if log_to_file:
+                try:
+                    if len(temp_memory) > 0:
+                        print("Saving temp memory")
+                        self.__save_file(
+                            mode=3,
+                            raw_data=temp_memory,
+                            naming=naming,
+                            conn=conn
+                        )
+                except:
+                    print("No temp memory")
 
-    try:
-        with serial.Serial(port, baud, timeout=1) as ser:
-            base_time = datetime.now()
-            last_rx_time = time.monotonic()
+                # -------- FINAL CHECK HERE --------
+                try:
+                    self.final_checking(naming)
+                except Exception as e:
+                    print("Final check failed:", e)
+                # ----------------------------------
 
-            while not stop_event.is_set():
-                if ser.in_waiting > 0:
-                    data = ser.readline().decode(errors="ignore").strip()
-                    if data:
-                        last_rx_time = time.monotonic()
-                        timestamp = time.strftime("%Y-%m-%d;%H:%M:%S")
-                        diff = abs(base_time - datetime.now())
-                        output = f"{timestamp};{diff};{temp_cycle};{data}"
+            self.info[tab]["stop"].set()
+            try:
+                self.info[tab]["thread"].join()
+            except:
+                print("problem with threading")
+                pass
 
-                        # send to UI
-                        log_q.put(output)
+            for _ in range(5):
+                print("*"*100)
+                queue.put("******************")
+            print("Finished program", time.strftime("%Y-%m-%d;%H:%M:%S"))
+            queue.put("Finished program: "+ time.strftime("%Y-%m-%d;%H:%M:%S"))
+            for _ in range(5):
+                print("*"*100)
+                queue.put("******************")
+        return
 
-                        # send to file writer
-                        file_q.put({
-                            "mode": 2,
-                            "folder": naming[0],
-                            "bateria": naming[1],
-                            "capacidad": naming[2],
-                            "ciclo": naming[3],
-                            "raw_data": output,
-                            "stages_history": cycle_history[-5:],
-                            "last_duration": duration
-                        })
+    ##********************************************
+    ##GUI
+    #*********************************************
+    def __update_tab_output(self, text_widget, data_queue):
+        while not data_queue.empty():
+            text_widget.insert("end", data_queue.get() + "\n")
+            text_widget.see("end")
+        text_widget.after(100, self.__update_tab_output, text_widget, data_queue)
 
-                        try:
-                            stage_code = data.split(';')[1]
-                            cycle_history.append(stage_code)
-                            _, state = extract_columns(output, data_history=cycle_history[-5:])
-                        except Exception:
-                            state = None
+    def on_tab_change(self, event):
+        selected = self.notebook.select()
+        # Print the name of the selected tab
+        tab_name = self.notebook.tab(selected, "text")
+        if tab_name=="+": #adding new tab
+            name="Bat "+str(len(self.tabs))
+            self.tabs.append(name)
+            self.tabs[-1]= ttk.Frame(self.notebook)
+            self.notebook.add(self.tabs[-1], text=name)
+            self.notebook.select(self.tabs[-1])
+            # creating user inputs interfaces
+            self.user_inputs(self.tabs[-1], name,self.__list_ports())
+            
+            print("Updating user interface")
+            #showing the capture information and start reading from monitor serial
+            self.__second_interface(self.tabs[-1],name)           
+            
+            # #starting running monitor serial
+            # self.__run_main_script(name)
+        else:
+            print(f"User selected tab: {tab_name}")
 
-                        if state and state != last_state:
-                            last_state = state
-                            if state=="charging":
-                                temp_cycle+=1
-                            
-                            base_time = datetime.now()
-                            print(f"{datetime.now()}- New cycle state:{state} - {battery_name}")
-
-                        try:
-                            duration = sum(float(x) for x in output.split('$')[0].split(';')[-3].split(':'))
-                        except Exception:
-                            duration = 0
-
-                        if state == "finished":
-                            log_q.put(f"🏁 Cycle finished ({battery_name})")
-                            break
-
-                if time.monotonic() - last_rx_time > TIMEOUT_SECONDS:
-                    log_q.put(f"⏱ No data for {TIMEOUT_SECONDS}s ({battery_name}). Closing monitor.")
-                    break
-
-                time.sleep(0.1)
-
-    except Exception as e:
-        log_q.put(f"❌ Serial error ({battery_name}): {e}")
-        traceback.print_exc()
-    
-    print(f"{datetime.now()}- exiting monitor serial function - {battery_name}")
-
-# ======================================================
-# -------------------- UI TAB --------------------------
-# ======================================================
-
-class BatteryTab:
-    def __init__(self, notebook, tab_name, com_ports, file_q):
-        self.notebook = notebook
-        self.tab_name = tab_name
-        self.frame = ttk.Frame(notebook)
-        notebook.add(self.frame, text=tab_name)
-
-        self.com_ports = com_ports
-        self.log_q = queue.Queue()
-        self.stop_event = threading.Event()
-        self.info = {}
-        self.file_q = file_q
-
-        self._user_inputs(self.frame)
-
-    def _user_inputs(self, root):
+    def user_inputs(self, root, tab_name, com_ports:list):
+        """creating user inputs interfaces
+        """
+        print("*"*100)
+        print("Waiting for user inputs")
+        self.info[tab_name]={
+            "Baud rate":9600            
+        }
+        global btn_text
+        
         btn_text = tk.StringVar(value="Confirmar datos")
         fields = ["Bateria","Capacidad nominal","Ciclo","Ruta de folder"]
 
