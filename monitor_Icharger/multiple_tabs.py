@@ -390,8 +390,7 @@ class BatteryTab:
             for f in fields:
                 val = entries[f].get()
                 if f=="Ruta de folder" and not val:
-                    val = os.getcwd()
-                print(val)
+                    val = os.getcwd()                
                 self.info[f] = val
 
             for w in root.winfo_children():
@@ -418,16 +417,16 @@ class BatteryTab:
     def _second_interface(self, root):
         self.notebook.tab(root, text=self.info["Bateria"])
 
-        # Header frame with close button
-        header_frame = ttk.Frame(root)
-        header_frame.pack(fill=tk.X,padx=5,pady=5)
+        # Create a main container frame (packed)
+        main_frame = ttk.Frame(root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Left: info labels
-        info_frame = ttk.Frame(header_frame)
-        info_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # Create a header frame inside main_frame (use grid inside it)
+        header_frame = ttk.Frame(main_frame)
+        header_frame.grid(row=0, column=0, sticky="ew")
 
+        self.baud_var = tk.StringVar(value="Detecting...")
         self.com_var = tk.StringVar(value=self.info["COM port"])
-        self.baud_var = tk.StringVar(value=self.info["Baud rate"])
 
         info_items = [
             ("Batería", self.info["Bateria"]),
@@ -435,7 +434,7 @@ class BatteryTab:
             ("Ciclo", self.info["Ciclo"]),
             ("Ruta de folder", self.info["Ruta de folder"]),
             ("COM port", self.info["COM port"]),
-            ("Baud rate", self.info["Baud rate"])
+        ("Baud rate", self.info["Baud rate"])
         ]
 
         for i, (label, value) in enumerate(info_items):
@@ -447,23 +446,26 @@ class BatteryTab:
             else:
                 ttk.Label(header_frame, text=value, wraplength=600).grid(row=i, column=1, sticky="w")
 
-        # Close button
+        # Close button (still inside header_frame)
         def close_tab():
-            # Stop the thread if running
-            self.stop_event.set()
-            # Remove tab from notebook
+            self.stop_event.set()  # stop reading thread
             self.notebook.forget(self.frame)
 
         ttk.Button(header_frame, text="Close Tab", command=close_tab).grid(
             row=len(info_items), column=0, columnspan=2, pady=5
         )
-        
-        # Separator
-        ttk.Separator(root, orient="horizontal").pack(fill=tk.X, padx=5, pady=5)
 
-        # Terminal frame (pack it)
-        terminal = tk.Text(root, height=15)
-        terminal.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Separator (also in main_frame, packed separately)
+        separator = ttk.Separator(main_frame, orient="horizontal")
+        separator.grid(row=1, column=0, sticky="ew", pady=5)
+
+        # Terminal text widget (also inside main_frame)
+        terminal = tk.Text(main_frame, height=15)
+        terminal.grid(row=2, column=0, sticky="nsew", pady=5)
+
+        # Make the terminal expand when resizing
+        main_frame.rowconfigure(2, weight=1)
+        main_frame.columnconfigure(0, weight=1)        
 
         naming = [
             self.info["Ruta de folder"],
