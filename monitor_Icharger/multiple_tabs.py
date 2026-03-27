@@ -376,20 +376,16 @@ class BatteryTab:
 
     def _user_inputs(self, root):
         btn_text = tk.StringVar(value="Confirmar datos")
-        fields = ["Bateria","Capacidad nominal","Ciclo","Ruta de folder"]
-
-        #manual selection
-        # Available baud rates
-        # baud_options = [9600, 19200, 38400, 57600, 115200, 230400]
+        fields = ["Bateria","Capacidad nominal","Ciclo","Ruta de folder"]        
 
         def on_submit():
             if btn_text.get() == "Confirmar datos":
                 btn_text.set("Iniciar grabacion de datos")
                 return
 
-            self.info["COM port"] = dropdown_var.get()
-            # self.info["Baud rate"] = int(baud_var.get())  # Save selected baud rate
-            self.info["Baud rate"] = detect_baud(self.info["COM port"])
+            self.info["COM port"] = dropdown_var.get()            
+            self.info["Baud rate"] = detect_baud(self.info["COM port"].split('-')[0].strip())
+            print("COM port: ",self.info["COM port"],"Baud rate: ",self.info["Baud rate"])
 
             for f in fields:
                 val = entries[f].get()
@@ -406,12 +402,7 @@ class BatteryTab:
         # COM port selection
         ttk.Label(root, text="COM port:").grid(row=0,column=0)
         dropdown_var = tk.StringVar()
-        ttk.Combobox(root, values=self.com_ports, textvariable=dropdown_var).grid(row=0,column=1)
-
-        # Baud rate manual selection
-        # ttk.Label(root, text="Baud rate:").grid(row=1, column=0)
-        # baud_var = tk.StringVar(value=str(115200))  # default value
-        # ttk.Combobox(root, values=baud_options, textvariable=baud_var).grid(row=1,column=1)
+        ttk.Combobox(root, values=self.com_ports, textvariable=dropdown_var).grid(row=0,column=1)        
 
         # Other fields
         entries = {}
@@ -435,31 +426,44 @@ class BatteryTab:
         info_frame = ttk.Frame(header_frame)
         info_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        self.baud_var = tk.StringVar(value="Detecting...")
         self.com_var = tk.StringVar(value=self.info["COM port"])
+        self.baud_var = tk.StringVar(value=self.info["Baud rate"])
 
         info_items = [
             ("Batería", self.info["Bateria"]),
             ("Capacidad nominal", self.info["Capacidad nominal"]),
             ("Ciclo", self.info["Ciclo"]),
             ("Ruta de folder", self.info["Ruta de folder"]),
-            ("COM port", self.com_var),
-            ("Baud rate", self.baud_var)#manual selection
+            ("COM port", self.info["COM port"]),
+            ("Baud rate", self.info["Baud rate"])
         ]
 
-        for i,(label,value) in enumerate(info_items):
-            ttk.Label(header_frame,text=f"{label}:",font=("Segoe UI",9,"bold")).grid(row=i,column=0,sticky="w",padx=(0,5))
-            if isinstance(value,tk.StringVar):
-                ttk.Label(header_frame,textvariable=value).grid(row=i,column=1,sticky="w")
+        for i, (label, value) in enumerate(info_items):
+            ttk.Label(header_frame, text=f"{label}:", font=("Segoe UI", 9, "bold")).grid(
+                row=i, column=0, sticky="w", padx=(0, 5)
+            )
+            if isinstance(value, tk.StringVar):
+                ttk.Label(header_frame, textvariable=value).grid(row=i, column=1, sticky="w")
             else:
-                ttk.Label(header_frame,text=value,wraplength=600).grid(row=i,column=1,sticky="w")
+                ttk.Label(header_frame, text=value, wraplength=600).grid(row=i, column=1, sticky="w")
 
-        # Right: close button
-        close_btn = ttk.Button(header_frame, text="Close Tab", command=self._close_tab)
-        close_btn.pack(side=tk.RIGHT, padx=5)
-        ttk.Separator(root,orient="horizontal").pack(fill=tk.X,padx=5,pady=5)
-        terminal = tk.Text(root,height=15)
-        terminal.pack(fill=tk.BOTH,expand=True,padx=5,pady=5)
+        # Close button
+        def close_tab():
+            # Stop the thread if running
+            self.stop_event.set()
+            # Remove tab from notebook
+            self.notebook.forget(self.frame)
+
+        ttk.Button(header_frame, text="Close Tab", command=close_tab).grid(
+            row=len(info_items), column=0, columnspan=2, pady=5
+        )
+        
+        # Separator
+        ttk.Separator(root, orient="horizontal").pack(fill=tk.X, padx=5, pady=5)
+
+        # Terminal frame (pack it)
+        terminal = tk.Text(root, height=15)
+        terminal.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         naming = [
             self.info["Ruta de folder"],
@@ -471,7 +475,7 @@ class BatteryTab:
         threading.Thread(
             target=monitor_serial_thread,
             # args=({"port": self.info["COM port"],"naming": naming}, self.log_q, self.file_q, self.stop_event),
-            args=({"port": self.info["COM port"],"baud":self.baud_var,"naming": naming}, self.log_q, self.file_q, self.stop_event), #manual selection
+            args=({"port": self.info["COM port"],"baud":self.info["Baud rate"],"naming": naming}, self.log_q, self.file_q, self.stop_event), #manual selection
             daemon=True
         ).start()
 
