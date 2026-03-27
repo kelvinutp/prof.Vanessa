@@ -169,7 +169,7 @@ def list_com_ports():
     ports = serial.tools.list_ports.comports()
     port_list = []
     for port in ports:
-        description = port.description
+        description = ''
         # Check if the port can be opened
         try:
             ser = serial.Serial(port.device)
@@ -383,8 +383,8 @@ class BatteryTab:
                 btn_text.set("Iniciar grabacion de datos")
                 return
 
-            self.info["COM port"] = dropdown_var.get()            
-            self.info["Baud rate"] = detect_baud(self.info["COM port"].split('-')[0].strip())
+            self.info["COM port"] = dropdown_var.get().split('-')[0].strip()
+            self.info["Baud rate"] = detect_baud(self.info["COM port"])
             print("COM port: ",self.info["COM port"],"Baud rate: ",self.info["Baud rate"])
 
             for f in fields:
