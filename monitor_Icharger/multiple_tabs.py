@@ -380,7 +380,7 @@ class BatteryTab:
 
         #manual selection
         # Available baud rates
-        baud_options = [9600, 19200, 38400, 57600, 115200, 230400]
+        # baud_options = [9600, 19200, 38400, 57600, 115200, 230400]
 
         def on_submit():
             if btn_text.get() == "Confirmar datos":
@@ -388,7 +388,8 @@ class BatteryTab:
                 return
 
             self.info["COM port"] = dropdown_var.get()
-            self.info["Baud rate"] = int(baud_var.get())  # Save selected baud rate
+            # self.info["Baud rate"] = int(baud_var.get())  # Save selected baud rate
+            self.info["Baud rate"] = detect_baud(self.info["COM port"])
 
             for f in fields:
                 val = entries[f].get()
@@ -408,9 +409,9 @@ class BatteryTab:
         ttk.Combobox(root, values=self.com_ports, textvariable=dropdown_var).grid(row=0,column=1)
 
         # Baud rate manual selection
-        ttk.Label(root, text="Baud rate:").grid(row=1, column=0)
-        baud_var = tk.StringVar(value=str(115200))  # default value
-        ttk.Combobox(root, values=baud_options, textvariable=baud_var).grid(row=1,column=1)
+        # ttk.Label(root, text="Baud rate:").grid(row=1, column=0)
+        # baud_var = tk.StringVar(value=str(115200))  # default value
+        # ttk.Combobox(root, values=baud_options, textvariable=baud_var).grid(row=1,column=1)
 
         # Other fields
         entries = {}
