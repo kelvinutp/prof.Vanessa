@@ -47,7 +47,6 @@ class CloudSyncService {
   static Future<bool> _connect() async {
     if (_isConnecting || isConnected) return isConnected;
     _isConnecting = true;
-
     final rng = Random.secure();
     final clientId = 'icharger_client_${rng.nextInt(9999999)}';
 
@@ -125,6 +124,7 @@ class CloudSyncService {
 
     final payloadMap = batteries.map((k, v) => MapEntry(k, v.toJson()));
     builder.addString(json.encode(payloadMap));
+    print('Publishing state to topic: $topic, code: $cloudCode');
 
     _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
   }
