@@ -11,6 +11,7 @@ import queue
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
@@ -213,6 +214,12 @@ def stop_monitor(battery_id: str):
         stop_events[battery_id].set()
         return {"message": "Stopping tracking"}
     raise HTTPException(status_code=404, detail="Not tracking this battery.")
+
+# Serve the Flutter Web App
+if os.path.exists("battery_monitor_app/build/web"):
+    app.mount("/", StaticFiles(directory="battery_monitor_app/build/web", html=True), name="static")
+else:
+    print("Warning: Flutter web build not found at battery_monitor_app/build/web")
 
 if __name__ == "__main__":
     print("Starting Headless iCharger Monitor API on port 8000...")
