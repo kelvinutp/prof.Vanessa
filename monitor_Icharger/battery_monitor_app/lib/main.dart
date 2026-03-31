@@ -6,10 +6,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 import 'models/battery_state.dart';
 import 'services/server_service.dart';
 import 'services/serial_service.dart';
+import 'services/cloud_sync_service.dart';
 import 'screens/battery_detail_screen.dart';
 
 void main() async {
@@ -33,7 +35,6 @@ class IChargerApp extends StatelessWidget {
           surface: const Color(0xFF1A1A2E),
         ),
         useMaterial3: true,
-        fontFamily: 'Roboto',
       ),
       home: const MainRouter(),
     );
@@ -42,7 +43,6 @@ class IChargerApp extends StatelessWidget {
 
 class MainRouter extends StatefulWidget {
   const MainRouter({super.key});
-
   @override
   State<MainRouter> createState() => _MainRouterState();
 }
@@ -54,7 +54,15 @@ class _MainRouterState extends State<MainRouter> {
   @override
   void initState() {
     super.initState();
-    if (isDesktop) LocalServerService.start();
+    if (isDesktop) {
+      LocalServerService.start();
+      // Start MQTT cloud publishing loop on desktop
+      CloudSyncService.connectDesktop().then((_) {
+        Timer.periodic(const Duration(seconds: 1), (_) {
+          CloudSyncService.publishState(LocalServerService.currentBatteries);
+        });
+      });
+    }
   }
 
   @override
@@ -68,7 +76,6 @@ class _MainRouterState extends State<MainRouter> {
 
 class HostDesktopScreen extends StatefulWidget {
   const HostDesktopScreen({super.key});
-
   @override
   State<HostDesktopScreen> createState() => _HostDesktopScreenState();
 }
@@ -76,6 +83,7 @@ class HostDesktopScreen extends StatefulWidget {
 class _HostDesktopScreenState extends State<HostDesktopScreen> {
   Map<String, BatteryInfo> batteries = {};
   List<Map<String, dynamic>> portsWithStatus = [];
+  Map<String, DateTime> activeClients = {};
 
   @override
   void initState() {
@@ -83,7 +91,10 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
     _refreshPorts();
     Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
-        setState(() => batteries = Map.from(LocalServerService.currentBatteries));
+        setState(() {
+          batteries = Map.from(LocalServerService.currentBatteries);
+          activeClients = Map.from(LocalServerService.activeClients);
+        });
       }
     });
   }
@@ -98,7 +109,6 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
     final cycleCtrl = TextEditingController(text: '1');
     final folderCtrl = TextEditingController();
     String? selectedPort;
-    int baudrate = 9600;
     _refreshPorts();
 
     showDialog(
@@ -142,19 +152,10 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
                   }).toList(),
                   onChanged: (val) => setD(() => selectedPort = val),
                 ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(
-                    labelText: 'Baud Rate',
-                    labelStyle: TextStyle(color: Colors.white54),
-                  ),
-                  dropdownColor: const Color(0xFF16213E),
-                  value: baudrate,
-                  items: [9600, 19200, 38400, 57600, 115200, 230400]
-                      .map((b) =>
-                          DropdownMenuItem(value: b, child: Text('$b')))
-                      .toList(),
-                  onChanged: (v) => setD(() => baudrate = v ?? 9600),
+                const SizedBox(height: 4),
+                Text(
+                  'Baud rate will be auto-detected.',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
                 ),
                 const SizedBox(height: 8),
                 _field(nameCtrl, 'Bateria (ID)'),
@@ -174,7 +175,7 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
                 final info = BatteryInfo(
                   batteryId: nameCtrl.text,
                   port: selectedPort!,
-                  baudrate: baudrate,
+                  baudrate: 0, // Auto-detected by SerialService
                   bateria: nameCtrl.text,
                   capacidad: capacityCtrl.text,
                   ciclo: cycleCtrl.text,
@@ -213,6 +214,8 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
   Widget build(BuildContext context) {
     final ip = LocalServerService.hostIp;
     final pin = LocalServerService.pairingPin;
+    final cloudCode = CloudSyncService.cloudCode;
+    final cloudConnected = CloudSyncService.isConnected;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
@@ -229,79 +232,155 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
       ),
       body: Column(
         children: [
-          // ── PIN / Connection Panel ──────────────────────────────
+          // ── Server Info Panel ─────────────────────────────────
           Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF0F3460), Color(0xFF16213E)],
               ),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+              border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.wifi_tethering, color: Colors.cyanAccent, size: 32),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
+                // Row 1: Local network info + PIN
+                Row(
+                  children: [
+                    const Icon(Icons.wifi_tethering, color: Colors.cyanAccent, size: 28),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Local Network',
+                              style: TextStyle(color: Colors.white38, fontSize: 10)),
+                          Text('$ip:8000',
+                              style: const TextStyle(
+                                  color: Colors.cyanAccent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const Text('Local PIN: ',
+                        style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amberAccent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(pin,
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 4)),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.white10, height: 16),
+                // Row 2: MQTT Cloud info
+                Row(
+                  children: [
+                    Icon(
+                      cloudConnected ? Icons.cloud_done : Icons.cloud_off,
+                      color: cloudConnected ? Colors.greenAccent : Colors.red[300],
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cloudConnected
+                                ? 'Cloud Relay Active (broker.hivemq.com)'
+                                : 'Cloud Relay Offline',
+                            style: TextStyle(
+                              color: cloudConnected ? Colors.greenAccent : Colors.red[300],
+                              fontSize: 11,
+                            ),
+                          ),
+                          if (cloudConnected && cloudCode.isNotEmpty)
+                            Text('Cloud Code: $cloudCode',
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    if (cloudConnected && cloudCode.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(cloudCode,
+                            style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                letterSpacing: 4)),
+                      ),
+                  ],
+                ),
+                // Row 3: Connected mobile clients
+                if (activeClients.isNotEmpty) ...[
+                  const Divider(color: Colors.white10, height: 14),
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Server Active — Awaiting Mobile Connection',
-                          style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text('IP: $ip:8000',
-                              style: const TextStyle(color: Colors.cyanAccent, fontSize: 14)),
-                          const SizedBox(width: 16),
-                          const Text('Pairing PIN: ',
-                              style: TextStyle(color: Colors.white54, fontSize: 12)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.amberAccent,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(pin,
-                                style: const TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    letterSpacing: 4)),
-                          ),
-                        ],
+                      const Icon(Icons.phone_android,
+                          color: Colors.white38, size: 16),
+                      const SizedBox(width: 6),
+                      const Text('Connected Devices: ',
+                          style: TextStyle(color: Colors.white38, fontSize: 11)),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: activeClients.keys
+                              .map((id) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal[900],
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.4)),
+                                    ),
+                                    child: Text(id,
+                                        style: const TextStyle(
+                                            color: Colors.tealAccent,
+                                            fontSize: 10)),
+                                  ))
+                              .toList(),
+                        ),
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  children: [
-                    Text('${batteries.length} battery(ies)',
-                        style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                    const SizedBox(height: 4),
-                    Text('${portsWithStatus.length} port(s) found',
-                        style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                  ],
-                ),
+                ],
               ],
             ),
           ),
-          // ── Battery Grid ───────────────────────────────────────
+          const SizedBox(height: 8),
+          // ── Battery Grid ──────────────────────────────────────
           Expanded(
             child: batteries.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
+                      children: const [
                         Icon(Icons.battery_unknown,
-                            size: 64, color: Colors.white12),
-                        const SizedBox(height: 12),
-                        const Text('No batteries monitored yet.',
+                            size: 64, color: Color(0x1AFFFFFF)),
+                        SizedBox(height: 12),
+                        Text('No batteries monitored yet.',
                             style: TextStyle(color: Colors.white38)),
-                        const SizedBox(height: 4),
-                        const Text('Press + to bind a COM port.',
+                        SizedBox(height: 4),
+                        Text('Press + to auto-detect a COM port.',
                             style: TextStyle(color: Colors.white24, fontSize: 12)),
                       ],
                     ),
@@ -312,8 +391,8 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
                     onTap: (id) => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => BatteryDetailScreen(
-                              batteryId: id, isDesktop: true)),
+                          builder: (_) =>
+                              BatteryDetailScreen(batteryId: id, isDesktop: true)),
                     ),
                     onStop: (id) {
                       SerialService.stopMonitoring(id);
@@ -338,9 +417,22 @@ class _HostDesktopScreenState extends State<HostDesktopScreen> {
 // ========== MOBILE CLIENT — PAIRING SCREEN ================
 // ==========================================================
 
+Future<String> _getDeviceId() async {
+  final info = DeviceInfoPlugin();
+  try {
+    if (Platform.isAndroid) {
+      final d = await info.androidInfo;
+      return d.id;
+    } else if (Platform.isIOS) {
+      final d = await info.iosInfo;
+      return d.identifierForVendor ?? 'ios-${DateTime.now().millisecondsSinceEpoch}';
+    }
+  } catch (_) {}
+  return 'device-${DateTime.now().millisecondsSinceEpoch}';
+}
+
 class ClientPairingScreen extends StatefulWidget {
   const ClientPairingScreen({super.key});
-
   @override
   State<ClientPairingScreen> createState() => _ClientPairingScreenState();
 }
@@ -351,27 +443,71 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
   String _status = 'Tap Scan to find the Desktop App on your network.';
   RawDatagramSocket? _udpSocket;
 
+  @override
+  void initState() {
+    super.initState();
+    _tryAutoConnect();
+  }
+
+  @override
+  void dispose() {
+    _udpSocket?.close();
+    super.dispose();
+  }
+
+  Future<void> _tryAutoConnect() async {
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('backendUrl');
+    final token = prefs.getString('authToken');
+    if (url != null && token != null && mounted) {
+      try {
+        final res = await http
+            .get(Uri.parse('http://$url/health'))
+            .timeout(const Duration(seconds: 2));
+        if (res.statusCode == 200 && mounted) {
+          _goToDashboard(url, token, 'local');
+          return;
+        }
+      } catch (_) {}
+    }
+    // Try cloud auto-reconnect
+    final savedCode = prefs.getString('cloudCode');
+    if (savedCode != null && mounted) {
+      setState(() => _status = 'Reconnecting via Cloud Relay…');
+      final ok = await CloudSyncService.connectMobile(savedCode);
+      if (ok && mounted) {
+        _goToCloudDashboard(savedCode);
+      } else if (mounted) {
+        setState(() => _status = 'Tap Scan or use Cloud Connect to pair.');
+      }
+    }
+  }
+
   Future<void> _startUdpScan() async {
-    setState(() { _scanning = true; _status = 'Scanning local network for Desktop App…'; });
+    setState(() {
+      _scanning = true;
+      _status = 'Scanning local network for Desktop App…';
+    });
     try {
-      _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8001);
+      _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8001,
+          reusePort: true);
       _udpSocket!.broadcastEnabled = true;
 
       _udpSocket!.listen((event) {
         if (event == RawSocketEvent.read) {
-          final datagram = _udpSocket!.receive();
-          if (datagram != null) {
+          final dg = _udpSocket!.receive();
+          if (dg != null) {
             try {
-              final msg = json.decode(utf8.decode(datagram.data));
+              final msg = jsonDecode(utf8.decode(dg.data)) as Map<String, dynamic>;
               if (msg['service'] == 'iCharger') {
-                final ip = datagram.address.address;
-                final port = msg['port'] ?? 8000;
+                final discoveredIp = '${dg.address.address}:${msg['port'] ?? 8000}';
                 setState(() {
-                  _discoveredIp = '$ip:$port';
+                  _discoveredIp = discoveredIp;
                   _scanning = false;
-                  _status = 'Desktop found at $_discoveredIp!';
+                  _status = 'Desktop found at $discoveredIp!';
                 });
                 _udpSocket?.close();
+                _udpSocket = null;
                 _promptPin();
               }
             } catch (_) {}
@@ -379,18 +515,21 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
         }
       });
 
-      // Timeout after 15 seconds
       Future.delayed(const Duration(seconds: 15), () {
         if (_scanning && mounted) {
           _udpSocket?.close();
+          _udpSocket = null;
           setState(() {
             _scanning = false;
-            _status = 'No Desktop App found. Ensure it is running and on the same network.';
+            _status = 'No Desktop App found on local network.';
           });
         }
       });
     } catch (e) {
-      setState(() { _scanning = false; _status = 'Scan error: $e'; });
+      setState(() {
+        _scanning = false;
+        _status = 'Scan error: $e';
+      });
     }
   }
 
@@ -406,7 +545,7 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Desktop found at $_discoveredIp\nEnter the 4-digit PIN displayed on the Desktop.',
+            Text('Desktop found at $_discoveredIp\nEnter the 4-digit PIN shown on the Desktop.',
                 style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 12),
             TextField(
@@ -422,7 +561,10 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () { Navigator.pop(ctx); setState(() => _discoveredIp = null); },
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() => _discoveredIp = null);
+              },
               child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
@@ -445,65 +587,21 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
       final res = await http.post(
         Uri.parse('http://$_discoveredIp/auth'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'pin': pin}),
+        body: jsonEncode({'pin': pin}),
       ).timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 200) {
-        final token = (json.decode(res.body) as Map)['token'] as String;
+        final token = (jsonDecode(res.body) as Map)['token'] as String;
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('backendUrl', _discoveredIp!);
         await prefs.setString('authToken', token);
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ClientDashboard(
-                backendUrl: _discoveredIp!,
-                authToken: token,
-              ),
-            ),
-          );
-        }
+        if (mounted) _goToDashboard(_discoveredIp!, token, 'local');
       } else {
-        setState(() => _status = 'Wrong PIN. Try again.');
+        if (mounted) setState(() => _status = 'Wrong PIN. Try again.');
       }
     } catch (e) {
-      setState(() => _status = 'Connection failed: $e');
+      if (mounted) setState(() => _status = 'Connection failed: $e');
     }
-  }
-
-  Future<void> _tryAutoConnect() async {
-    final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString('backendUrl');
-    final token = prefs.getString('authToken');
-    if (url != null && token != null) {
-      try {
-        final res = await http
-            .get(Uri.parse('http://$url/health'))
-            .timeout(const Duration(seconds: 2));
-        if (res.statusCode == 200 && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-                builder: (_) =>
-                    ClientDashboard(backendUrl: url, authToken: token)),
-          );
-          return;
-        }
-      } catch (_) {}
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tryAutoConnect();
-  }
-
-  @override
-  void dispose() {
-    _udpSocket?.close();
-    super.dispose();
   }
 
   void _manualEntry() {
@@ -516,14 +614,13 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
         content: TextField(
           controller: ipCtrl,
           decoration: const InputDecoration(
-              labelText: 'Host IP:Port',
-              hintText: '192.168.x.x:8000',
-              labelStyle: TextStyle(color: Colors.white54)),
+            labelText: 'Host IP:Port',
+            hintText: '192.168.x.x:8000',
+            labelStyle: TextStyle(color: Colors.white54),
+          ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -534,6 +631,78 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _cloudConnectDialog() {
+    final codeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: Row(
+          children: const [
+            Icon(Icons.cloud, color: Colors.greenAccent),
+            SizedBox(width: 8),
+            Text('Cloud Connect', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter the 6-digit Cloud Code displayed on the desktop.\nThis works across any network worldwide.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: codeCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 28, letterSpacing: 6),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(counterText: ''),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final code = codeCtrl.text.trim();
+              if (code.length != 6) return;
+              Navigator.pop(ctx);
+              setState(() => _status = 'Connecting to Cloud Relay…');
+              final ok = await CloudSyncService.connectMobile(code);
+              if (ok && mounted) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('cloudCode', code);
+                _goToCloudDashboard(code);
+              } else if (mounted) {
+                setState(() => _status = 'Could not connect to cloud. Check the code and try again.');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent),
+            child: const Text('Connect', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _goToDashboard(String url, String token, String mode) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+          builder: (_) => ClientDashboard(backendUrl: url, authToken: token)),
+    );
+  }
+
+  void _goToCloudDashboard(String code) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => CloudClientDashboard(cloudCode: code)),
     );
   }
 
@@ -552,12 +721,13 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
               const Text('iCharger Monitor',
                   style: TextStyle(
                       fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               const Text('Connect to a Desktop Host',
                   style: TextStyle(color: Colors.white54, fontSize: 14)),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               Container(
-                padding: const EdgeInsets.all(16),
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: const Color(0xFF16213E),
                   borderRadius: BorderRadius.circular(12),
@@ -567,7 +737,7 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white70)),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               if (_scanning)
                 const CircularProgressIndicator(color: Colors.cyanAccent)
               else
@@ -578,7 +748,7 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _startUdpScan,
                         icon: const Icon(Icons.search),
-                        label: const Text('Auto-Scan Network'),
+                        label: const Text('Auto-Scan (Same Network)'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.cyanAccent,
                           foregroundColor: Colors.black,
@@ -586,7 +756,21 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _cloudConnectDialog,
+                        icon: const Icon(Icons.cloud),
+                        label: const Text('Cloud Connect (Any Network)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.greenAccent,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -611,14 +795,13 @@ class _ClientPairingScreenState extends State<ClientPairingScreen> {
 }
 
 // ==========================================================
-// ========== CLIENT DASHBOARD ==============================
+// ========== LOCAL NETWORK CLIENT DASHBOARD ================
 // ==========================================================
 
 class ClientDashboard extends StatefulWidget {
   final String backendUrl;
   final String authToken;
-  const ClientDashboard(
-      {super.key, required this.backendUrl, required this.authToken});
+  const ClientDashboard({super.key, required this.backendUrl, required this.authToken});
 
   @override
   State<ClientDashboard> createState() => _ClientDashboardState();
@@ -628,11 +811,15 @@ class _ClientDashboardState extends State<ClientDashboard> {
   Map<String, dynamic> batteries = {};
   Timer? _timer;
   bool isConnected = false;
+  String _deviceId = '';
 
   @override
   void initState() {
     super.initState();
-    _startPolling();
+    _getDeviceId().then((id) {
+      _deviceId = id;
+      _startPolling();
+    });
   }
 
   @override
@@ -645,21 +832,21 @@ class _ClientDashboardState extends State<ClientDashboard> {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
       try {
-        final res = await http
-            .get(
-              Uri.parse('http://${widget.backendUrl}/batteries'),
-              headers: {'Authorization': 'Bearer ${widget.authToken}'},
-            )
-            .timeout(const Duration(seconds: 2));
-        if (res.statusCode == 200) {
-          if (mounted) {
-            setState(() {
-              batteries = json.decode(res.body) as Map<String, dynamic>;
-              isConnected = true;
-            });
-          }
-        } else {
-          if (mounted) setState(() => isConnected = false);
+        final res = await http.get(
+          Uri.parse('http://${widget.backendUrl}/batteries'),
+          headers: {
+            'Authorization': 'Bearer ${widget.authToken}',
+            'device-id': _deviceId, // Track this device on server
+          },
+        ).timeout(const Duration(seconds: 2));
+
+        if (res.statusCode == 200 && mounted) {
+          setState(() {
+            batteries = jsonDecode(res.body) as Map<String, dynamic>;
+            isConnected = true;
+          });
+        } else if (mounted) {
+          setState(() => isConnected = false);
         }
       } catch (_) {
         if (mounted) setState(() => isConnected = false);
@@ -688,7 +875,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF16213E),
         foregroundColor: Colors.white,
-        title: const Text('iCharger Monitor — Client'),
+        title: const Text('iCharger Monitor — Local'),
         actions: [
           IconButton(
               icon: const Icon(Icons.link_off),
@@ -698,7 +885,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
       ),
       body: Column(
         children: [
-          // Connection banner
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             color: isConnected ? Colors.green[900] : Colors.red[900],
@@ -708,8 +894,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
               isConnected
                   ? '● Connected to ${widget.backendUrl}'
                   : '✕ Desktop App Not Currently Running — Cannot reach ${widget.backendUrl}',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
           ),
@@ -736,17 +921,12 @@ class _ClientDashboardState extends State<ClientDashboard> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          isConnected
-                              ? Icons.battery_unknown
-                              : Icons.wifi_off,
-                          size: 64,
-                          color: Colors.white12,
+                          isConnected ? Icons.battery_unknown : Icons.wifi_off,
+                          size: 64, color: Colors.white12,
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          isConnected
-                              ? 'No batteries being monitored.'
-                              : 'Desktop app is offline.',
+                          isConnected ? 'No batteries being monitored.' : 'Desktop app is offline.',
                           style: const TextStyle(color: Colors.white38),
                         ),
                       ],
@@ -760,7 +940,127 @@ class _ClientDashboardState extends State<ClientDashboard> {
 }
 
 // ==========================================================
-// ========== SHARED UI =====================================
+// ========== CLOUD (MQTT) CLIENT DASHBOARD =================
+// ==========================================================
+
+class CloudClientDashboard extends StatefulWidget {
+  final String cloudCode;
+  const CloudClientDashboard({super.key, required this.cloudCode});
+
+  @override
+  State<CloudClientDashboard> createState() => _CloudClientDashboardState();
+}
+
+class _CloudClientDashboardState extends State<CloudClientDashboard> {
+  Map<String, dynamic> batteries = {};
+  DateTime? _lastReceived;
+  late StreamSubscription<Map<String, dynamic>> _sub;
+
+  bool get isConnected =>
+      _lastReceived != null &&
+      DateTime.now().difference(_lastReceived!).inSeconds < 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = CloudSyncService.dataStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          batteries = data;
+          _lastReceived = DateTime.now();
+        });
+      }
+    });
+    // Refresh connected indicator every second
+    Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+
+  void _disconnect() async {
+    CloudSyncService.disconnect();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('cloudCode');
+    if (mounted) {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const ClientPairingScreen()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final batList = batteries.values
+        .map((v) => BatteryInfo.fromJson(v as Map<String, dynamic>))
+        .toList();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF16213E),
+        foregroundColor: Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.cloud, color: Colors.greenAccent, size: 18),
+            const SizedBox(width: 8),
+            Text('Cloud: ${widget.cloudCode}'),
+          ],
+        ),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.link_off),
+              tooltip: 'Disconnect',
+              onPressed: _disconnect),
+        ],
+      ),
+      body: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            color: isConnected ? Colors.green[900] : Colors.red[900],
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            width: double.infinity,
+            child: Text(
+              isConnected
+                  ? '● Cloud Relay Active — Desktop is sending data'
+                  : '✕ Desktop App Not Currently Active — Waiting for data on Cloud Code ${widget.cloudCode}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Expanded(
+            child: isConnected && batteries.isNotEmpty
+                ? _BatteryGrid(
+                    batteries: batList,
+                    isDesktop: false,
+                    onTap: (_) {}, // Cloud mode: no terminal view (logs not relayed via MQTT yet)
+                    onStop: (_) {},
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.cloud_off, size: 64, color: Color(0x1AFFFFFF)),
+                        SizedBox(height: 12),
+                        Text('Waiting for data from Desktop…',
+                            style: TextStyle(color: Colors.white38)),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================================
+// ========== SHARED UI WIDGETS =============================
 // ==========================================================
 
 class _BatteryGrid extends StatelessWidget {
@@ -834,7 +1134,7 @@ class _BatteryCard extends StatelessWidget {
         color: const Color(0xFF16213E),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: stateColor.withOpacity(0.4), width: 1.5),
+          side: BorderSide(color: stateColor.withValues(alpha: 0.4), width: 1.5),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -844,26 +1144,17 @@ class _BatteryCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      data.bateria,
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white),
-                    ),
+                    child: Text(data.bateria,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: stateColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        color: stateColor, borderRadius: BorderRadius.circular(12)),
                     child: Text(data.state.toUpperCase(),
                         style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
+                            fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
                 ],
               ),
@@ -873,15 +1164,24 @@ class _BatteryCard extends StatelessWidget {
               _row('Capacity', '${data.capacity} mAh', Colors.greenAccent),
               _row('Cycle',    data.ciclo,              Colors.purpleAccent),
               const Spacer(),
-              Row(
-                children: [
-                  const Icon(Icons.usb, size: 12, color: Colors.white38),
-                  const SizedBox(width: 4),
-                  Text('${data.port} @ ${data.baudrate}',
-                      style:
-                          const TextStyle(color: Colors.white38, fontSize: 11)),
-                ],
-              ),
+              if (data.baudrate > 0)
+                Row(
+                  children: [
+                    const Icon(Icons.usb, size: 12, color: Colors.white38),
+                    const SizedBox(width: 4),
+                    Text('${data.port} @ ${data.baudrate} baud',
+                        style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                )
+              else
+                Row(
+                  children: const [
+                    Icon(Icons.search, size: 12, color: Colors.white38),
+                    SizedBox(width: 4),
+                    Text('Auto-detecting baud rate…',
+                        style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -894,8 +1194,8 @@ class _BatteryCard extends StatelessWidget {
                     GestureDetector(
                       onTap: () => onStop(data.batteryId),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: Colors.red[900],
                           borderRadius: BorderRadius.circular(8),
@@ -922,12 +1222,8 @@ class _BatteryCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style:
-                  const TextStyle(color: Colors.white54, fontSize: 12)),
-          Text(value,
-              style: TextStyle(
-                  color: color, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          Text(value, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600)),
         ],
       ),
     );

@@ -13,6 +13,7 @@ class LocalServerService {
   static final Map<String, BatteryInfo> currentBatteries = {};
   static HttpServer? _httpServer;
   static RawDatagramSocket? _udpSocket;
+  static final Map<String, DateTime> activeClients = {};
 
   // PIN for mobile pairing
   static String pairingPin = '';
@@ -31,6 +32,11 @@ class LocalServerService {
   static Future<void> start() async {
     generatePin();
     await _resolveIp();
+
+    Timer.periodic(const Duration(seconds: 2), (_) {
+      final now = DateTime.now();
+      activeClients.removeWhere((id, time) => now.difference(time).inSeconds > 5);
+    });
 
     final router = Router();
 
@@ -75,6 +81,12 @@ class LocalServerService {
     // Protected: batteries
     router.get('/batteries', (Request req) {
       if (!isAuthorized(req)) return unauthorized();
+      
+      final deviceId = req.headers['device-id'];
+      if (deviceId != null && deviceId.isNotEmpty) {
+        activeClients[deviceId] = DateTime.now();
+      }
+
       final data = currentBatteries.map((k, v) => MapEntry(k, v.toJson()));
       return Response.ok(
           json.encode(data), headers: {'Content-Type': 'application/json'});

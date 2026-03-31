@@ -40,6 +40,8 @@ dependencies:
   shelf_router: ^1.1.4
   shelf_cors_headers: ^0.1.5
   shared_preferences: ^2.5.5
+  mqtt_client: ^10.11.10
+  device_info_plus: ^12.4.0
 
 dev_dependencies:
   flutter_test:

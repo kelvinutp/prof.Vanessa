@@ -55,7 +55,7 @@ class SerialService {
   /// Returns list of ports with availability label: "COM3", "COM3 (Busy)"
   static List<Map<String, dynamic>> getAvailablePortsWithStatus() {
     final available = SerialPort.availablePorts;
-    final busyPorts = _ports.keys.toSet();
+    final busyPorts = _ports.values.map((p) => p.name).toSet();
     return available.map((p) {
       final isBusy = busyPorts.contains(p);
       return {'port': p, 'busy': isBusy, 'label': isBusy ? '$p (Busy)' : p};
@@ -79,15 +79,40 @@ class SerialService {
 
   static Future<void> startMonitoring(BatteryInfo info, Function(BatteryInfo) onUpdate) async {
     final port = SerialPort(info.port);
-    if (!port.openReadWrite()) {
+    const baudRates = [9600, 19200, 38400, 57600, 115200, 230400];
+    int? detectedBaud;
+
+    info.status = 'auto-detecting baud...';
+    onUpdate(info);
+    terminalLogs[info.batteryId] = [];
+    _appendLog(info.batteryId, '[${_now()}] Probing baud rates on ${info.port}...');
+
+    for (var rate in baudRates) {
+      if (port.isOpen) port.close();
+      if (!port.openReadWrite()) continue;
+      port.config.baudRate = rate;
+      
+      try {
+        final data = port.read(1024, timeout: 1500);
+        String s = String.fromCharCodes(data);
+        if (s.contains('\$') && s.contains(';')) {
+          detectedBaud = rate;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (detectedBaud == null) {
+      if (port.isOpen) port.close();
       info.status = 'error';
-      info.errorMsg = 'Unable to open port ${info.port}';
+      info.errorMsg = 'Could not detect valid data at any baud rate.';
+      _appendLog(info.batteryId, '[${_now()}] ERROR: Auto-baud detection failed. No valid iCharger data found.');
       onUpdate(info);
       return;
     }
-    port.config.baudRate = info.baudrate;
+
+    info.baudrate = detectedBaud;
     _ports[info.batteryId] = port;
-    terminalLogs[info.batteryId] = [];
 
     final reader = SerialPortReader(port);
     _readers[info.batteryId] = reader;
@@ -95,7 +120,7 @@ class SerialService {
     info.status = 'monitoring';
     onUpdate(info);
 
-    _appendLog(info.batteryId, '[${_now()}] Monitoring started on ${info.port} @ ${info.baudrate} baud');
+    _appendLog(info.batteryId, '[${_now()}] Locked on ${info.port} @ ${info.baudrate} baud');
 
     DateTime baseTime = DateTime.now();
     int manipulableCycle = int.tryParse(info.ciclo) ?? 1;
