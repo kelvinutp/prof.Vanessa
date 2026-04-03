@@ -1,0 +1,26 @@
+# .antigravityignore
+
+# 1. Ignore everything by default
+/*
+
+# 2. Allow only the specific project folder
+!/monitor_Icharger/
+
+# 3. Specifically ignore Python junk within that folder
+monitor_Icharger/**/__pycache__/
+monitor_Icharger/**/*.pyc
+monitor_Icharger/**/*.pyo
+monitor_Icharger/**/*.pyd
+
+# 4. Ignore standard IDE and environment noise
+.git/
+.vscode/
+.idea/
+venv/
+env/
+.env
+
+# 5. Ignore build artifacts if you start the Flutter migration
+build/
+.dart_tool/
+.packages
