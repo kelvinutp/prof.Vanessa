@@ -17,18 +17,29 @@ class SessionProvider extends ChangeNotifier {
     _wsService.startServer(8080); // Default port
   }
 
+  Future<int?> detectBaudRate(String portName, Function(String) onLog) async {
+    return _serialService.detectBaudRate(portName, onLog);
+  }
+
   Future<void> addSession(BatterySession session) async {
     await _fileService.initializeSessionFiles(session);
     _sessions.add(session);
     notifyListeners();
     
-    _serialService.startMonitoring(session, (data) async {
-      session.dataHistory.add(data);
-      await _fileService.logData(session, data);
-      _wsService.broadcastSessionUpdate(session);
-      _wsService.broadcastDataPoint(session.id, data.toJson());
-      notifyListeners();
-    });
+    _serialService.startMonitoring(
+      session,
+      (data) async {
+        session.dataHistory.add(data);
+        await _fileService.logData(session, data);
+        _wsService.broadcastSessionUpdate(session);
+        _wsService.broadcastDataPoint(session.id, data.toJson());
+        notifyListeners();
+      },
+      (msg) {
+        session.logs.add(msg);
+        notifyListeners();
+      },
+    );
   }
 
   void stopSession(String id) {

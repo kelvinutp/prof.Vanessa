@@ -118,23 +118,95 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Edit')),
           ElevatedButton(
             onPressed: () {
-              final session = BatterySession(
-                id: const Uuid().v4(),
-                batteryName: _batteryName,
-                nominalCapacity: _nominalCapacity,
-                startingCycle: _startingCycle,
-                savePath: _savePath,
-                port: _selectedPort!,
-                baudRate: _baudRate,
-              );
-              context.read<SessionProvider>().addSession(session);
               Navigator.pop(ctx);
-              Navigator.pop(context);
+              _startBaudRateDetection();
             },
             child: const Text('Start Monitoring'),
           ),
         ],
       ),
     );
+  }
+
+  void _startBaudRateDetection() async {
+    final provider = context.read<SessionProvider>();
+    final port = _selectedPort!;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (loadingCtx) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('Detecting Baud Rate...')),
+          ],
+        ),
+      ),
+    );
+
+    int? detected = await provider.detectBaudRate(port, (log) {});
+
+    if (mounted) {
+      Navigator.pop(context); // popup loading dialog
+    }
+
+    if (detected != null) {
+      _finalizeSetup(detected);
+    } else {
+      if (mounted) {
+        _showManualBaudRatePrompt();
+      }
+    }
+  }
+
+  void _showManualBaudRatePrompt() {
+    final controller = TextEditingController(text: '9600');
+    showDialog(
+      context: context,
+      builder: (promptCtx) => AlertDialog(
+        title: const Text('Detection Failed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Could not automatically determine the baud rate.'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Manual Baud Rate (e.g. 9600)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(promptCtx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              int manuallyEntered = int.tryParse(controller.text) ?? 9600;
+              Navigator.pop(promptCtx);
+              _finalizeSetup(manuallyEntered);
+            },
+            child: const Text('Use Manual'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _finalizeSetup(int finalBaudRate) {
+    if (!mounted) return;
+    final session = BatterySession(
+      id: const Uuid().v4(),
+      batteryName: _batteryName,
+      nominalCapacity: _nominalCapacity,
+      startingCycle: _startingCycle,
+      savePath: _savePath,
+      port: _selectedPort!,
+      baudRate: finalBaudRate,
+    );
+    context.read<SessionProvider>().addSession(session);
+    Navigator.pop(context); // Close the overarching SetupDialog
   }
 }

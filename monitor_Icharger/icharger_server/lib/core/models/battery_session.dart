@@ -8,11 +8,12 @@ class BatterySession {
   final int startingCycle;
   final String savePath;
   final String port;
-  final int baudRate;
+  int baudRate;
   
   BatteryState currentState;
   int currentCycle;
   List<SerialData> dataHistory;
+  List<String> logs;
   bool isActive;
   String? errorMessage;
 
@@ -27,7 +28,8 @@ class BatterySession {
     this.currentState = BatteryState.unknown,
     this.isActive = false,
   })  : currentCycle = startingCycle,
-        dataHistory = [];
+        dataHistory = [],
+        logs = [];
 
   Map<String, dynamic> toJson() => {
         'id': id,

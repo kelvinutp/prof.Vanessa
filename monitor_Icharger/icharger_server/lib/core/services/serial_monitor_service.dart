@@ -29,7 +29,53 @@ class SerialMonitorService {
     }
   }
 
-  void startMonitoring(BatterySession session, Function(SerialData) onData) {
+  Future<int?> detectBaudRate(String portName, Function(String) onLog) async {
+    const commonBaudRates = [9600, 14400, 19200, 38400, 57600, 115200, 128000, 256000, 460800, 921600];
+
+    for (int attempt = 1; attempt <= 2; attempt++) {
+      onLog('[SYSTEM] Baud rate detection loop $attempt/2');
+      for (final baudRate in commonBaudRates) {
+        onLog('[SYSTEM] Testing baud rate $baudRate...');
+        try {
+          final port = SerialPort(portName);
+          if (!port.openReadWrite()) {
+            onLog('[SYSTEM] Failed to open port at $baudRate');
+            continue;
+          }
+          port.config.baudRate = baudRate;
+          
+          final reader = SerialPortReader(port);
+          final completer = Completer<int?>();
+          final sub = reader.stream.listen((data) {
+            final rawLine = utf8.decode(data, allowMalformed: true).trim();
+            if (rawLine.contains('\$')) {
+              if (!completer.isCompleted) {
+                completer.complete(baudRate);
+              }
+            }
+          });
+
+          final result = await Future.any([
+            completer.future,
+            Future.delayed(const Duration(milliseconds: 500), () => null)
+          ]);
+
+          sub.cancel();
+          port.close();
+
+          if (result != null) {
+            onLog('[SYSTEM] Successfully detected baud rate: $baudRate');
+            return baudRate;
+          }
+        } catch (e) {
+          onLog('[SYSTEM] Error testing $baudRate: $e');
+        }
+      }
+    }
+    return null;
+  }
+
+  void startMonitoring(BatterySession session, Function(SerialData) onData, Function(String) onLog) {
     if (_activeSubscriptions.containsKey(session.id)) return;
 
     final port = SerialPort(session.port);
@@ -39,11 +85,12 @@ class SerialMonitorService {
     try {
       if (!port.openReadWrite()) {
         session.errorMessage = "Could not open port ${session.port}";
+        onLog('[SYSTEM] Error: Could not open port ${session.port}');
         return;
       }
 
       port.config.baudRate = session.baudRate;
-      // You might need more config here like parity etc based on Python code (which used defaults)
+      onLog('[SYSTEM] Connecting to ${session.port} at ${session.baudRate} baud');
 
       session.isActive = true;
       final reader = SerialPortReader(port);
@@ -51,6 +98,9 @@ class SerialMonitorService {
       final sub = reader.stream.listen((data) {
         final rawLine = utf8.decode(data, allowMalformed: true).trim();
         if (rawLine.isEmpty) return;
+
+        // Add raw output to normal logs if desired, but here we can just log raw serial string
+        session.logs.add(rawLine);
 
         final parsed = processor.parseRawLine(
           rawLine: rawLine,
@@ -63,6 +113,7 @@ class SerialMonitorService {
           if (processor.detectCycleJump(parsed.state)) {
             session.currentCycle++;
             baseTime = DateTime.now();
+            onLog('[SYSTEM] Cycle jump detected. New cycle: ${session.currentCycle}');
           }
           session.currentState = parsed.state;
           onData(parsed);
@@ -74,6 +125,7 @@ class SerialMonitorService {
     } catch (e) {
       session.errorMessage = e.toString();
       session.isActive = false;
+      onLog('[SYSTEM] Exception starting monitor: $e');
     }
   }
 

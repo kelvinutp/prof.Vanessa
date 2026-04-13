@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/session_provider.dart';
 import '../../core/models/battery_session.dart';
+import '../../core/models/battery_state.dart';
 import '../widgets/setup_battery_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -81,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: FloatingActionButton(
         onPressed: () => showDialog(context: context, builder: (_) => const SetupBatteryDialog()),
         child: const Icon(Icons.add),
@@ -102,6 +104,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Battery: ${session.batteryName}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStateColor(session.currentState),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      session.currentState.displayName,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => setState(() => _selectedSession = null),
@@ -115,6 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _infoTile('Capacity', '${session.nominalCapacity} mAh'),
                   _infoTile('Cycle', '${session.currentCycle}'),
                   _infoTile('Port', session.port),
+                  _infoTile('Baud Rate', '${session.baudRate}'),
                   _infoTile('Path', session.savePath),
                 ],
               ),
@@ -133,12 +147,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             child: ListView.builder(
               reverse: true, // Show latest first
-              itemCount: session.dataHistory.length,
+              itemCount: session.logs.length,
               itemBuilder: (context, index) {
-                final data = session.dataHistory[session.dataHistory.length - 1 - index];
+                final log = session.logs[session.logs.length - 1 - index];
                 return Text(
-                  data.rawLine,
-                  style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12),
+                  log,
+                  style: TextStyle(
+                    color: log.startsWith('[SYSTEM]') ? Colors.orangeAccent : Colors.greenAccent, 
+                    fontFamily: 'monospace', 
+                    fontSize: 12
+                  ),
                 );
               },
             ),
@@ -156,6 +174,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(value, style: const TextStyle(fontSize: 14)),
       ],
     );
+  }
+
+  Color _getStateColor(BatteryState state) {
+    switch (state) {
+      case BatteryState.charging:
+        return Colors.green;
+      case BatteryState.discharging:
+        return Colors.red;
+      case BatteryState.rest:
+        return Colors.orange;
+      case BatteryState.finished:
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
   }
 }
 
