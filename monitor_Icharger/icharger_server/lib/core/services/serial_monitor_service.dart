@@ -46,9 +46,10 @@ class SerialMonitorService {
           
           final reader = SerialPortReader(port);
           final completer = Completer<int?>();
+          String _detectBuffer = '';
           final sub = reader.stream.listen((data) {
-            final rawLine = utf8.decode(data, allowMalformed: true).trim();
-            if (rawLine.contains('\$')) {
+            _detectBuffer += utf8.decode(data, allowMalformed: true);
+            if (_detectBuffer.contains('\$')) {
               if (!completer.isCompleted) {
                 completer.complete(baudRate);
               }
@@ -62,6 +63,7 @@ class SerialMonitorService {
 
           sub.cancel();
           port.close();
+          await Future.delayed(const Duration(milliseconds: 100)); // sleep after close
 
           if (result != null) {
             onLog('[SYSTEM] Successfully detected baud rate: $baudRate');
@@ -94,30 +96,42 @@ class SerialMonitorService {
 
       session.isActive = true;
       final reader = SerialPortReader(port);
+      String _buffer = '';
       
       final sub = reader.stream.listen((data) {
-        final rawLine = utf8.decode(data, allowMalformed: true).trim();
-        if (rawLine.isEmpty) return;
+        _buffer += utf8.decode(data, allowMalformed: true);
 
-        // Add raw output to normal logs if desired, but here we can just log raw serial string
-        session.logs.add(rawLine);
+        while (_buffer.contains('\n')) {
+          int index = _buffer.indexOf('\n');
+          String rawLine = _buffer.substring(0, index).trim();
+          _buffer = _buffer.substring(index + 1);
 
-        final parsed = processor.parseRawLine(
-          rawLine: rawLine,
-          timestamp: DateTime.now(),
-          baseTime: baseTime,
-          currentCycle: session.currentCycle,
-        );
+          if (rawLine.isEmpty) continue;
 
-        if (parsed != null) {
-          if (processor.detectCycleJump(parsed.state)) {
-            session.currentCycle++;
-            baseTime = DateTime.now();
-            onLog('[SYSTEM] Cycle jump detected. New cycle: ${session.currentCycle}');
+          final stamp = DateTime.now();
+          final String ts = '${stamp.year.toString().padLeft(4,'0')}-${stamp.month.toString().padLeft(2,'0')}-${stamp.day.toString().padLeft(2,'0')};${stamp.hour.toString().padLeft(2,'0')}:${stamp.minute.toString().padLeft(2,'0')}:${stamp.second.toString().padLeft(2,'0')}';
+          
+          final diff = stamp.difference(baseTime).inMicroseconds / 1000000;
+          final formattedLog = '$ts;${diff.toStringAsFixed(2)};${session.currentCycle};$rawLine';
+          session.logs.add(formattedLog);
+
+          final parsed = processor.parseRawLine(
+            rawLine: rawLine,
+            timestamp: stamp,
+            baseTime: baseTime,
+            currentCycle: session.currentCycle,
+          );
+
+          if (parsed != null) {
+            if (processor.detectCycleJump(parsed.state)) {
+              session.currentCycle++;
+              baseTime = DateTime.now();
+              onLog('[SYSTEM] Cycle jump detected. New cycle: ${session.currentCycle}');
+            }
+            session.currentState = parsed.state;
+            onData(parsed);
+            _dataStreamController.add(parsed);
           }
-          session.currentState = parsed.state;
-          onData(parsed);
-          _dataStreamController.add(parsed);
         }
       });
 
