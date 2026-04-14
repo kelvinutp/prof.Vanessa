@@ -19,7 +19,6 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
   int _startingCycle = 1;
   String _savePath = '';
   String? _selectedPort;
-  final int _baudRate = 9600;
 
   @override
   void initState() {

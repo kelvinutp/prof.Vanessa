@@ -19,67 +19,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final sessions = context.watch<SessionProvider>().sessions;
 
+    final mqttService = context.watch<SessionProvider>().mqttService;
+
     return Scaffold(
       appBar: AppBar(title: const Text('ICharger Multi-Battery Logger (Server)')),
-      body: Row(
+      body: Column(
         children: [
-          // Left Side: Grid of Batteries
-          Expanded(
-            flex: 2,
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 1.5,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-              ),
-              itemCount: sessions.length,
-              itemBuilder: (context, index) {
-                final session = sessions[index];
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedSession = session),
-                  child: Card(
-                    color: _selectedSession?.id == session.id ? Colors.blue.withValues(alpha: 0.1) : null,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(session.batteryName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('Stage: ${session.currentState.displayName}'),
-                          Text('Cycle: ${session.currentCycle}'),
-                          const Spacer(),
-                          Row(
-                            children: [
-                              Icon(Icons.circle, size: 12, color: session.isActive ? Colors.green : Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(session.isActive ? 'Active' : 'Stopped'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
+          // MQTT Info Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue.shade50,
+            child: Row(
+              children: [
+                const Icon(Icons.cloud, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text('Broker: ${mqttService.broker}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                const Icon(Icons.vpn_key, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text('Connection Code: ', style: const TextStyle(color: Colors.grey)),
+                SelectableText(mqttService.serverCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+                const SizedBox(width: 16),
+                IconButton(
+                  icon: const Icon(Icons.terminal),
+                  tooltip: 'View MQTT Logs',
+                  onPressed: () => _showMqttTerminal(context),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  tooltip: 'Send Test Message',
+                  onPressed: context.read<SessionProvider>().sendTestMessage,
+                ),
+              ],
             ),
           ),
-          
-          // Right Side: Details Panel
-          if (_selectedSession != null)
-            Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(border: Border(left: BorderSide(color: Colors.grey.shade300))),
-                child: _buildDetailPanel(_selectedSession!),
-              ),
-            )
-          else
-            const Expanded(
-              flex: 3,
-              child: Center(child: Text('Select a battery to view details')),
+          Expanded(
+            child: Row(
+              children: [
+                // Left Side: Grid of Batteries
+                Expanded(
+                  flex: 2,
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 1.5,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                    ),
+                    itemCount: sessions.length,
+                    itemBuilder: (context, index) {
+                      final session = sessions[index];
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedSession = session),
+                        child: Card(
+                          color: _selectedSession?.id == session.id ? Colors.blue.withValues(alpha: 0.1) : null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(session.batteryName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text('Stage: ${session.currentState.displayName}'),
+                                Text('Cycle: ${session.currentCycle}'),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    Icon(Icons.circle, size: 12, color: session.isActive ? Colors.green : Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(session.isActive ? 'Active' : 'Stopped'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Right Side: Details Panel
+                if (_selectedSession != null)
+                  Expanded(
+                    flex: 3,
+                    child: Container(
+                      decoration: BoxDecoration(border: Border(left: BorderSide(color: Colors.grey.shade300))),
+                      child: _buildDetailPanel(_selectedSession!),
+                    ),
+                  )
+                else
+                  const Expanded(
+                    flex: 3,
+                    child: Center(child: Text('Select a battery to view details')),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
@@ -87,6 +123,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onPressed: () => showDialog(context: context, builder: (_) => const SetupBatteryDialog()),
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  void _showMqttTerminal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('MQTT Terminal (Server)'),
+          content: SizedBox(
+            width: 800,
+            height: 500,
+            child: Container(
+              color: Colors.black,
+              padding: const EdgeInsets.all(12),
+              child: Consumer<SessionProvider>(
+                builder: (context, provider, child) {
+                  return ListView.builder(
+                    reverse: true,
+                    itemCount: provider.mqttLogs.length,
+                    itemBuilder: (context, index) {
+                      final log = provider.mqttLogs[provider.mqttLogs.length - 1 - index];
+                      final isSent = log['isSent'] as bool;
+                      final text = log['text'] as String;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Text(
+                          '${isSent ? '[OUT]' : '[IN]'} $text',
+                          style: TextStyle(
+                            color: isSent ? Colors.blueAccent : Colors.greenAccent,
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                          textAlign: isSent ? TextAlign.right : TextAlign.left,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 

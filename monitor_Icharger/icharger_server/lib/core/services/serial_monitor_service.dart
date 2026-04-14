@@ -46,10 +46,10 @@ class SerialMonitorService {
           
           final reader = SerialPortReader(port);
           final completer = Completer<int?>();
-          String _detectBuffer = '';
+          String detectBuffer = '';
           final sub = reader.stream.listen((data) {
-            _detectBuffer += utf8.decode(data, allowMalformed: true);
-            if (_detectBuffer.contains('\$')) {
+            detectBuffer += utf8.decode(data, allowMalformed: true);
+            if (detectBuffer.contains('\$')) {
               if (!completer.isCompleted) {
                 completer.complete(baudRate);
               }
@@ -96,15 +96,15 @@ class SerialMonitorService {
 
       session.isActive = true;
       final reader = SerialPortReader(port);
-      String _buffer = '';
+      String buffer = '';
       
       final sub = reader.stream.listen((data) {
-        _buffer += utf8.decode(data, allowMalformed: true);
+        buffer += utf8.decode(data, allowMalformed: true);
 
-        while (_buffer.contains('\n')) {
-          int index = _buffer.indexOf('\n');
-          String rawLine = _buffer.substring(0, index).trim();
-          _buffer = _buffer.substring(index + 1);
+        while (buffer.contains('\n')) {
+          int index = buffer.indexOf('\n');
+          String rawLine = buffer.substring(0, index).trim();
+          buffer = buffer.substring(index + 1);
 
           if (rawLine.isEmpty) continue;
 
