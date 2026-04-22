@@ -176,20 +176,23 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
                     itemCount: provider.mqttLogs.length,
                     itemBuilder: (context, index) {
                       final log = provider.mqttLogs[provider.mqttLogs.length - 1 - index];
-                      final isSent = log['isSent'] as bool;
-                      final text = log['text'] as String;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2.0),
                         child: Text(
-                          '${isSent ? '[OUT]' : '[IN]'} $text',
+                          log['isSystem'] == true 
+                            ? '[SYS] ${log['text']}'
+                            : '${log['isSent'] == true ? '[OUT]' : '[IN]'} ${log['text']}',
                           style: TextStyle(
-                            color: isSent ? Colors.blueAccent : Colors.greenAccent,
+                            color: log['isSystem'] == true 
+                              ? Colors.yellowAccent 
+                              : (log['isSent'] == true ? Colors.blueAccent : Colors.greenAccent),
                             fontFamily: 'monospace',
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
-                          textAlign: isSent ? TextAlign.right : TextAlign.left,
+                          textAlign: log['isSystem'] == true ? TextAlign.center : (log['isSent'] == true ? TextAlign.right : TextAlign.left),
                         ),
                       );
+
                     },
                   );
                 },

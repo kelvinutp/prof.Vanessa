@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
+import 'mqtt_client_helper.dart';
+import 'logger_service.dart';
 
 class MqttClientService {
-  late MqttServerClient client;
-  final String broker = 'test.mosquitto.org';
+  late MqttClient client;
+  final String broker = 'broker.emqx.io';
   bool isConnected = false;
   String? activeServerCode;
   
@@ -16,47 +17,68 @@ class MqttClientService {
 
   MqttClientService({required this.onMessageReceived, required this.onDisconnected});
 
+
   Future<bool> connect(String serverCode) async {
     final clientIdentifier = 'icharger_client_${DateTime.now().millisecondsSinceEpoch}';
-    client = MqttServerClient(broker, clientIdentifier);
-    client.port = 1883;
-    client.keepAlivePeriod = 20;
-    client.onDisconnected = _handleDisconnect;
-
-    final connMessage = MqttConnectMessage()
-        .withClientIdentifier(clientIdentifier)
-        .startClean();
-    client.connectionMessage = connMessage;
-
+    logger.log('Starting MQTT connection attempt with code: $serverCode');
+    logger.log('Client Identifier: $clientIdentifier');
+    
     try {
-      await client.connect();
-      isConnected = true;
-      activeServerCode = serverCode;
-      debugPrint('MQTT Client connected to $broker');
+      // Use the cross-platform helper to create the client
+      client = getMqttClient(broker, clientIdentifier);
       
-      // Subscribe to the server's topic
-      client.subscribe('icharger/$serverCode', MqttQos.atLeastOnce);
+      client.keepAlivePeriod = 20;
+      client.onDisconnected = () {
+        logger.log('MQTT Client triggered onDisconnected callback');
+        _handleDisconnect();
+      };
+      client.onConnected = () => logger.log('MQTT Client triggered onConnected callback');
+      client.onSubscribed = (topic) => logger.log('MQTT Client subscribed to: $topic');
+      client.onSubscribeFail = (topic) => logger.log('MQTT Client FAILED to subscribe to: $topic');
 
-      // Publish connection event to server
-      _publish('icharger/$serverCode/inbound', jsonEncode({'type': 'client_connected'}));
+      final connMessage = MqttConnectMessage()
+          .withClientIdentifier(clientIdentifier)
+          .startClean();
+      client.connectionMessage = connMessage;
+
+      logger.log('Connecting to $broker...');
+      await client.connect();
       
-      client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
-        final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
-        final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+      if (client.connectionStatus!.state == MqttConnectionState.connected) {
+        isConnected = true;
+        activeServerCode = serverCode;
+        logger.log('Successfully connected to $broker');
         
-        onLogMessage?.call(pt, isSent: false);
+        // Subscribe to the server's topic
+        logger.log('Subscribing to icharger/$serverCode...');
+        client.subscribe('icharger/$serverCode', MqttQos.atLeastOnce);
+
+        // Publish connection event to server
+        logger.log('Publishing client_connected event...');
+        _publish('icharger/$serverCode/inbound', jsonEncode({'type': 'client_connected'}));
         
-        try {
-          final payload = jsonDecode(pt);
-          onMessageReceived(payload);
-        } catch (e) {
-          debugPrint('Error decoding MQTT message: $e');
-        }
-      });
-      
-      return true;
+        client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+          final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
+          final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          
+          logger.log('Received payload: $pt');
+          onLogMessage?.call(pt, isSent: false);
+          
+          try {
+            final payload = jsonDecode(pt);
+            onMessageReceived(payload);
+          } catch (e) {
+            logger.log('Error decoding MQTT message: $e');
+          }
+        });
+        
+        return true;
+      } else {
+        logger.log('Connection state is not connected: ${client.connectionStatus!.state}');
+        return false;
+      }
     } catch (e) {
-      debugPrint('MQTT Client Connection failed: $e');
+      logger.log('MQTT Client Connection EXCEPTION: $e');
       client.disconnect();
       return false;
     }
@@ -65,23 +87,29 @@ class MqttClientService {
   void _handleDisconnect() {
     isConnected = false;
     onDisconnected();
-    debugPrint('MQTT Client Disconnected');
+    logger.log('Internal disconnect handler triggered');
   }
 
   void disconnect() {
+    logger.log('Manual disconnect requested');
     client.disconnect();
   }
 
   void publishTestMessage() {
-    if (!isConnected || activeServerCode == null) return;
+    if (!isConnected || activeServerCode == null) {
+      logger.log('Cannot publish test message: Not connected');
+      return;
+    }
     _publish('icharger/$activeServerCode/inbound', jsonEncode({'type': 'test', 'message': 'Manual test from client'}));
-    debugPrint('Published test message to server');
   }
 
   void _publish(String topic, String message) {
+    logger.log('Publishing to $topic: $message');
     onLogMessage?.call(message, isSent: true);
     final builder = MqttClientPayloadBuilder();
     builder.addString(message);
     client.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
   }
 }
+
+

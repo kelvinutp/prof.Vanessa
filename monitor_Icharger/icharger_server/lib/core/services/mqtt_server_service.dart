@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
+import 'mqtt_client_helper.dart';
+import 'logger_service.dart';
 import '../models/battery_session.dart';
 
 class MqttServerService {
-  late MqttServerClient client;
-  final String broker = 'test.mosquitto.org';
+  late MqttClient client;
+  final String broker = 'broker.emqx.io';
   late String serverCode;
   bool isConnected = false;
   
@@ -24,70 +25,87 @@ class MqttServerService {
 
   Future<void> connect() async {
     final clientIdentifier = 'icharger_server_$serverCode';
-    client = MqttServerClient(broker, clientIdentifier);
-    client.port = 1883;
-    client.keepAlivePeriod = 20;
-    client.onDisconnected = _onDisconnected;
+    logger.log('Starting MQTT Server connection with code: $serverCode');
+    logger.log('Server Identifier: $clientIdentifier');
     
-    // Set Last Will and Testament
-    final lwtTopic = 'icharger/$serverCode';
-    final lwtMessage = jsonEncode({
-      'type': 'status',
-      'state': 'offline',
-      'message': 'Server disconnected unexpectedly. Reboot required.'
-    });
-    
-    final connMessage = MqttConnectMessage()
-        .withClientIdentifier(clientIdentifier)
-        .withWillTopic(lwtTopic)
-        .withWillMessage(lwtMessage)
-        .withWillQos(MqttQos.atLeastOnce)
-        .withWillRetain()
-        .startClean();
-    client.connectionMessage = connMessage;
-
     try {
-      await client.connect();
-      isConnected = true;
-      debugPrint('MQTT connected to $broker on topic icharger/$serverCode');
+      // Use the cross-platform helper
+      client = getMqttClient(broker, clientIdentifier);
       
-      // Subscribe to inbound client messages
-      client.subscribe('icharger/$serverCode/inbound', MqttQos.atLeastOnce);
-      
-      client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
-        final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
-        final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
-        
-        onLogMessage?.call(pt, isSent: false);
-        
-        try {
-          final payload = jsonDecode(pt);
-          if (payload['type'] == 'client_connected') {
-            final welcomeMsg = jsonEncode({
-              'type': 'welcome',
-              'message': 'Welcome to ICharger Server!'
-            });
-            _publish(welcomeMsg);
-            debugPrint('Client connected: sent broadcase welcome message.');
-          } else if (payload['type'] == 'test') {
-            debugPrint('Received test message from client: ${payload['message']}');
-          }
-        } catch (e) {
-          debugPrint('Error decoding incoming message: $e');
-        }
+      client.keepAlivePeriod = 20;
+      client.onDisconnected = () {
+        logger.log('MQTT Server triggered onDisconnected callback');
+        _onDisconnected();
+      };
+      client.onConnected = () => logger.log('MQTT Server triggered onConnected callback');
+      client.onSubscribed = (topic) => logger.log('MQTT Server subscribed to: $topic');
+
+      // Set Last Will and Testament
+      final lwtTopic = 'icharger/$serverCode';
+      final lwtMessage = jsonEncode({
+        'type': 'status',
+        'state': 'offline',
+        'message': 'Server disconnected unexpectedly. Reboot required.'
       });
       
-      // Publish initial online status
-      broadcastStatus('online');
+      final connMessage = MqttConnectMessage()
+          .withClientIdentifier(clientIdentifier)
+          .withWillTopic(lwtTopic)
+          .withWillMessage(lwtMessage)
+          .withWillQos(MqttQos.atLeastOnce)
+          .withWillRetain()
+          .startClean();
+      client.connectionMessage = connMessage;
+
+      logger.log('Connecting to $broker...');
+      await client.connect();
+      
+      if (client.connectionStatus!.state == MqttConnectionState.connected) {
+        isConnected = true;
+        logger.log('Successfully connected to $broker on topic icharger/$serverCode');
+        
+        // Subscribe to inbound client messages
+        logger.log('Subscribing to icharger/$serverCode/inbound...');
+        client.subscribe('icharger/$serverCode/inbound', MqttQos.atLeastOnce);
+        
+        client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+          final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
+          final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          
+          logger.log('Received payload: $pt');
+          onLogMessage?.call(pt, isSent: false);
+          
+          try {
+            final payload = jsonDecode(pt);
+            if (payload['type'] == 'client_connected') {
+              logger.log('Client connection event received');
+              final welcomeMsg = jsonEncode({
+                'type': 'welcome',
+                'message': 'Welcome to ICharger Server!'
+              });
+              _publish(welcomeMsg);
+            } else if (payload['type'] == 'test') {
+              logger.log('Test message received: ${payload['message']}');
+            }
+          } catch (e) {
+            logger.log('Error decoding incoming message: $e');
+          }
+        });
+        
+        // Publish initial online status
+        broadcastStatus('online');
+      } else {
+        logger.log('Connection state is not connected: ${client.connectionStatus!.state}');
+      }
     } catch (e) {
-      debugPrint('MQTT Connection failed: $e');
+      logger.log('MQTT Server Connection EXCEPTION: $e');
       client.disconnect();
     }
   }
 
   void _onDisconnected() {
     isConnected = false;
-    debugPrint('MQTT Disconnected');
+    logger.log('Internal disconnect handler triggered');
   }
 
   void broadcastStatus(String state) {
@@ -136,6 +154,7 @@ class MqttServerService {
   }
 
   void _publish(String message) {
+    logger.log('Publishing to icharger/$serverCode: $message');
     onLogMessage?.call(message, isSent: true);
     final builder = MqttClientPayloadBuilder();
     builder.addString(message);
@@ -143,7 +162,10 @@ class MqttServerService {
   }
 
   void dispose() {
+    logger.log('Disposing MqttServerService');
     broadcastStatus('offline');
     client.disconnect();
   }
 }
+
+

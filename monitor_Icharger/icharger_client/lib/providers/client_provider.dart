@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/models/battery_session.dart';
 import '../core/models/serial_data.dart';
 import '../core/services/mqtt_client_service.dart';
+import '../core/services/logger_service.dart';
 
 class ClientProvider extends ChangeNotifier {
   MqttClientService? _mqttService;
@@ -21,6 +22,17 @@ class ClientProvider extends ChangeNotifier {
 
   ClientProvider() {
     _loadSettings();
+    
+    // Hook into LoggerService to show system logs in the UI
+    logger.onLog = (msg) {
+      mqttLogs.add({
+        'text': msg,
+        'isSent': false,
+        'isSystem': true,
+        'timestamp': DateTime.now()
+      });
+      notifyListeners();
+    };
   }
 
   Future<void> _loadSettings() async {
@@ -36,11 +48,13 @@ class ClientProvider extends ChangeNotifier {
   }
 
   void connect(String serverCode) async {
+    logger.log('Client: connect() called for serverCode: $serverCode');
     _serverOfflineMessage = null;
     _welcomeMessage = null;
     _mqttService = MqttClientService(
       onMessageReceived: _handleMqttMessage,
       onDisconnected: () {
+        logger.log('Client: Service reported disconnect');
         _isConnected = false;
         notifyListeners();
       },
@@ -50,6 +64,7 @@ class ClientProvider extends ChangeNotifier {
       mqttLogs.add({
         'text': msg,
         'isSent': isSent,
+        'isSystem': false,
         'timestamp': DateTime.now()
       });
       notifyListeners();
@@ -57,8 +72,11 @@ class ClientProvider extends ChangeNotifier {
 
     final success = await _mqttService!.connect(serverCode);
     if (success) {
+      logger.log('Client: Connection reported success');
       _isConnected = true;
       _saveSettings(serverCode);
+    } else {
+      logger.log('Client: Connection reported FAILURE');
     }
     notifyListeners();
   }
@@ -108,6 +126,7 @@ class ClientProvider extends ChangeNotifier {
   }
 
   void disconnect() {
+    logger.log('Client: disconnect() called');
     _mqttService?.disconnect();
     _isConnected = false;
     notifyListeners();
@@ -119,6 +138,8 @@ class ClientProvider extends ChangeNotifier {
   }
 
   void sendTestMessage() {
+    logger.log('Client: sendTestMessage() called');
     _mqttService?.publishTestMessage();
   }
 }
+
