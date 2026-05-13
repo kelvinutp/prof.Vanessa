@@ -6,14 +6,20 @@ enum BatteryState {
   unknown;
 
   static BatteryState fromId(String id) {
-    switch (id.trim()) {
+    final cleanId = id.trim().toLowerCase();
+    switch (cleanId) {
       case '1':
+      case 'charging':
         return BatteryState.charging;
       case '2':
+      case 'discharging':
         return BatteryState.discharging;
       case '4':
+      case 'rest':
+      case 'resting':
         return BatteryState.rest;
       case '6':
+      case 'finished':
         return BatteryState.finished;
       default:
         return BatteryState.unknown;
@@ -27,7 +33,7 @@ enum BatteryState {
       case BatteryState.discharging:
         return 'Discharging';
       case BatteryState.rest:
-        return 'Resting';
+        return 'Rest';
       case BatteryState.finished:
         return 'Finished';
       case BatteryState.unknown:

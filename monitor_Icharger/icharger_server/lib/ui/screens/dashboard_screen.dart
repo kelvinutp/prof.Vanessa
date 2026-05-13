@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../providers/session_provider.dart';
 import '../../core/models/battery_session.dart';
 import '../../core/models/battery_state.dart';
+import '../../core/services/unified_logger_service.dart';
 import '../widgets/setup_battery_dialog.dart';
+import 'session_analysis_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,7 +20,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final sessions = context.watch<SessionProvider>().sessions;
-
     final mqttService = context.watch<SessionProvider>().mqttService;
 
     return Scaffold(
@@ -43,12 +44,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 IconButton(
                   icon: const Icon(Icons.terminal),
                   tooltip: 'View MQTT Logs',
-                  onPressed: () => _showMqttTerminal(context),
+                  onPressed: () {
+                    unifiedLogger.log('Clicked View MQTT Logs button', source: LogSource.ui);
+                    _showMqttTerminal(context);
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
                   tooltip: 'Send Test Message',
-                  onPressed: context.read<SessionProvider>().sendTestMessage,
+                  onPressed: () {
+                    unifiedLogger.log('Clicked Send Test Message button', source: LogSource.ui);
+                    context.read<SessionProvider>().sendTestMessage();
+                  },
                 ),
               ],
             ),
@@ -71,7 +78,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     itemBuilder: (context, index) {
                       final session = sessions[index];
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedSession = session),
+                        onTap: () {
+                          unifiedLogger.log('Selected battery session: ${session.batteryName}', source: LogSource.ui);
+                          setState(() => _selectedSession = session);
+                        },
                         child: Card(
                           color: _selectedSession?.id == session.id ? Colors.blue.withValues(alpha: 0.1) : null,
                           child: Padding(
@@ -119,9 +129,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showDialog(context: context, builder: (_) => const SetupBatteryDialog()),
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'analyze_fab',
+            onPressed: () {
+              unifiedLogger.log('Clicked Independent Analysis button (FAB)', source: LogSource.ui);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SessionAnalysisScreen(session: null),
+                  settings: const RouteSettings(name: 'IndependentAnalysis'),
+                ),
+              );
+            },
+            tooltip: 'Independent Analysis',
+            backgroundColor: Colors.orange,
+            child: const Icon(Icons.psychology, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'add_fab',
+            onPressed: () {
+              unifiedLogger.log('Clicked Add Battery button (FAB)', source: LogSource.ui);
+              showDialog(context: context, builder: (_) => const SetupBatteryDialog());
+            },
+            tooltip: 'Add Battery Session',
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }
@@ -206,19 +243,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => setState(() => _selectedSession = null),
+                    onPressed: () {
+                      unifiedLogger.log('Closed detail panel for ${session.batteryName}', source: LogSource.ui);
+                      setState(() => _selectedSession = null);
+                    },
                   ),
                 ],
               ),
               const Divider(),
-              Wrap(
-                spacing: 20,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _infoTile('Capacity', '${session.nominalCapacity} mAh'),
-                  _infoTile('Cycle', '${session.currentCycle}'),
-                  _infoTile('Port', session.port),
-                  _infoTile('Baud Rate', '${session.baudRate}'),
-                  _infoTile('Path', session.savePath),
+                  Wrap(
+                    spacing: 20,
+                    children: [
+                      _infoTile('Capacity', '${session.nominalCapacity} mAh'),
+                      _infoTile('Cycle', '${session.currentCycle}'),
+                      _infoTile('Port', session.port),
+                      _infoTile('Baud Rate', '${session.baudRate}'),
+                    ],
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      unifiedLogger.log('Clicked Analyze button for ${session.batteryName}', source: LogSource.ui);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SessionAnalysisScreen(session: session),
+                          settings: RouteSettings(name: 'Analysis_${session.batteryName}'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.analytics),
+                    label: const Text('Analyze'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
                 ],
               ),
             ],
