@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../providers/session_provider.dart';
 import '../../core/models/battery_session.dart';
+import '../../core/services/unified_logger_service.dart';
 import 'package:uuid/uuid.dart';
 
 class SetupBatteryDialog extends StatefulWidget {
@@ -24,6 +25,7 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
   void initState() {
     super.initState();
     _loadDefaultPath();
+    unifiedLogger.log('Opened SetupBatteryDialog', source: LogSource.ui);
   }
 
   void _loadDefaultPath() async {
@@ -45,7 +47,6 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: _selectedPort,
                 decoration: const InputDecoration(labelText: 'COM Port'),
                 items: ports.map((port) {
                   final isBusy = provider.serialService.isPortBusy(port);
@@ -55,7 +56,10 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
                     child: Text(port + (isBusy ? ' (Busy)' : '')),
                   );
                 }).toList(),
-                onChanged: (val) => setState(() => _selectedPort = val),
+                onChanged: (val) {
+                  unifiedLogger.log('Selected port: $val', source: LogSource.ui);
+                  setState(() => _selectedPort = val);
+                },
                 validator: (val) => val == null ? 'Select a port' : null,
               ),
               TextFormField(
@@ -81,8 +85,10 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
                   IconButton(
                     icon: const Icon(Icons.folder_open),
                     onPressed: () async {
+                      unifiedLogger.log('Clicked change path button in SetupBatteryDialog', source: LogSource.ui);
                       String? selectedDirectory = await FilePicker.getDirectoryPath();
                       if (selectedDirectory != null) {
+                        unifiedLogger.log('Changed save path to: $selectedDirectory', source: LogSource.ui);
                         setState(() => _savePath = selectedDirectory);
                       }
                     },
@@ -94,9 +100,16 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () {
+            unifiedLogger.log('Cancelled SetupBatteryDialog', source: LogSource.ui);
+            Navigator.pop(context);
+          },
+          child: const Text('Cancel'),
+        ),
         ElevatedButton(
           onPressed: () {
+            unifiedLogger.log('Clicked Confirm in SetupBatteryDialog', source: LogSource.ui);
             if (_formKey.currentState!.validate() && _selectedPort != null) {
               _showConfirmation();
             }
@@ -114,9 +127,16 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
         title: const Text('Confirm Data'),
         content: Text('Port: $_selectedPort\nBattery: $_batteryName\nCapacity: $_nominalCapacity\nCycle: $_startingCycle\nPath: $_savePath'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Edit')),
+          TextButton(
+            onPressed: () {
+              unifiedLogger.log('Clicked Edit in Confirmation dialog', source: LogSource.ui);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Edit'),
+          ),
           ElevatedButton(
             onPressed: () {
+              unifiedLogger.log('Confirmed session setup: Port=$_selectedPort, Battery=$_batteryName', source: LogSource.ui);
               Navigator.pop(ctx);
               _startBaudRateDetection();
             },
@@ -152,8 +172,10 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
     }
 
     if (detected != null) {
+      unifiedLogger.log('Baud rate detected: $detected', source: LogSource.serial);
       _finalizeSetup(detected);
     } else {
+      unifiedLogger.log('Baud rate detection failed for $port', source: LogSource.serial);
       if (mounted) {
         _showManualBaudRatePrompt();
       }
@@ -180,10 +202,17 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(promptCtx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              unifiedLogger.log('Cancelled manual baud rate prompt', source: LogSource.ui);
+              Navigator.pop(promptCtx);
+            },
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               int manuallyEntered = int.tryParse(controller.text) ?? 9600;
+              unifiedLogger.log('Using manual baud rate: $manuallyEntered', source: LogSource.ui);
               Navigator.pop(promptCtx);
               _finalizeSetup(manuallyEntered);
             },
@@ -205,6 +234,7 @@ class _SetupBatteryDialogState extends State<SetupBatteryDialog> {
       port: _selectedPort!,
       baudRate: finalBaudRate,
     );
+    unifiedLogger.log('Finalizing setup for ${session.batteryName}', source: LogSource.system);
     context.read<SessionProvider>().addSession(session);
     Navigator.pop(context); // Close the overarching SetupDialog
   }

@@ -4,7 +4,7 @@ import 'serial_data.dart';
 class BatterySession {
   final String id;
   final String batteryName;
-  final int nominalCapacity;
+  int nominalCapacity;
   final int startingCycle;
   final String savePath;
   final String port;

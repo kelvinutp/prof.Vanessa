@@ -51,13 +51,17 @@ class DataProcessor {
     
     int capacityMAh = int.tryParse(capacityRaw) ?? 0;
 
+    final systemTime = timestamp.difference(baseTime);
+    final cycleTime = systemTime.inMicroseconds / 1000000.0;
+
     return SerialData(
       timestamp: timestamp,
-      systemTime: timestamp.difference(baseTime),
+      systemTime: systemTime,
+      cycleTime: cycleTime,
       cycleNumber: currentCycle,
       state: state,
       voltageV: voltageV,
-      currentMA: currentMA, // This is actually Amperes if using Python logic
+      currentMA: currentMA,
       capacityMAh: capacityMAh,
       rawLine: rawLine,
     );
