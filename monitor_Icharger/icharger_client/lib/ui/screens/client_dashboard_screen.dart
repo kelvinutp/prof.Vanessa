@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/client_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../core/models/battery_session.dart';
 import '../widgets/graphing_panel.dart';
 
@@ -29,19 +30,47 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ClientProvider>();
+    final authProvider = context.watch<AuthProvider>();
     final sessions = provider.sessions;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ICharger Remote Monitor'),
+        title: const Text('ICharger Remote Monitor', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           Row(
             children: [
+              // User email identity chip
+              if (authProvider.authenticatedEmail != null) ...[
+                Chip(
+                  avatar: const CircleAvatar(
+                    backgroundColor: Colors.teal,
+                    child: Icon(Icons.person, size: 12, color: Colors.white),
+                  ),
+                  label: Text(
+                    authProvider.authenticatedEmail!,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 12),
+              ],
               Icon(Icons.circle, size: 12, color: provider.isConnected ? Colors.green : Colors.red),
               const SizedBox(width: 4),
               Text(provider.isConnected ? 'Connected' : 'Disconnected', 
                 style: TextStyle(color: provider.isConnected ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 16),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.redAccent),
+                tooltip: 'Logout session',
+                onPressed: () {
+                  // Make sure we disconnect from MQTT before logging out
+                  if (provider.isConnected) {
+                    provider.disconnect();
+                  }
+                  authProvider.logout();
+                },
+              ),
+              const SizedBox(width: 8),
             ],
           ),
         ],

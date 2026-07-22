@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'mqtt_client_helper.dart';
 import 'logger_service.dart';

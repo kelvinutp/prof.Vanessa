@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/session_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../core/models/battery_session.dart';
 import '../../core/models/battery_state.dart';
 import '../widgets/setup_battery_dialog.dart';
@@ -18,11 +19,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final sessions = context.watch<SessionProvider>().sessions;
-
     final mqttService = context.watch<SessionProvider>().mqttService;
+    final authProvider = context.watch<AuthProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ICharger Multi-Battery Logger (Server)')),
+      appBar: AppBar(
+        title: const Text('ICharger Multi-Battery Logger (Server)', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          if (authProvider.authenticatedEmail != null) ...[
+            Chip(
+              avatar: const CircleAvatar(
+                backgroundColor: Colors.blue,
+                child: Icon(Icons.shield, size: 12, color: Colors.white),
+              ),
+              label: Text(
+                authProvider.authenticatedEmail!,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 12),
+          ],
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.redAccent),
+            tooltip: 'Logout operator',
+            onPressed: () {
+              authProvider.logout();
+            },
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
       body: Column(
         children: [
           // MQTT Info Header
