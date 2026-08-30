@@ -1,0 +1,316 @@
+{
+  "site": {
+    "defaultLanguage": "es",
+    "availableLanguages": ["es", "en"],
+    "title": {
+      "es": "Grupo de Investigación en Sostenibilidad Energética y Telecomunicaciones",
+      "en": "Research Group on Energy Sustainability and Telecommunications"
+    }
+  },
+
+  "group": {
+    "shortName": {
+      "es": "GISET",
+      "en": "GISET"
+    },
+
+    "name": {
+      "es": "Grupo de Investigación en Sostenibilidad Energética y Telecomunicaciones",
+      "en": "Research Group on Energy Sustainability and Telecommunications"
+    },
+
+    "institution": {
+      "es": "Universidad Tecnológica de Panamá",
+      "en": "Technological University of Panama"
+    },
+
+    "faculty": {
+      "es": "Facultad de Ingeniería Eléctrica",
+      "en": "Faculty of Electrical Engineering"
+    },
+
+    "campus": {
+      "es": "Centro Regional de Panamá Oeste",
+      "en": "Panama Oeste Regional Center"
+    },
+
+    "description": {
+      "es": "Somos un grupo de investigación dedicado al desarrollo de soluciones innovadoras en sostenibilidad energética y telecomunicaciones, promoviendo la investigación aplicada, la formación de estudiantes y la colaboración académica.",
+      "en": "We are a research group dedicated to developing innovative solutions in energy sustainability and telecommunications, promoting applied research, student training, and academic collaboration."
+    },
+
+    "mission": {
+      "es": "Generar conocimiento y desarrollar soluciones tecnológicas que contribuyan al uso sostenible de la energía y al fortalecimiento de las telecomunicaciones.",
+      "en": "To generate knowledge and develop technological solutions that contribute to sustainable energy use and the advancement of telecommunications."
+    },
+
+    "vision": {
+      "es": "Ser un referente nacional e internacional en investigación aplicada en sostenibilidad energética y telecomunicaciones.",
+      "en": "To become a national and international reference in applied research in energy sustainability and telecommunications."
+    },
+
+    "logo": "assets/logo/group-logo.png"
+  },
+
+  "researchAreas": [
+    {
+      "id": "energy",
+      "icon": "⚡",
+      "name": {
+        "es": "Sostenibilidad Energética",
+        "en": "Energy Sustainability"
+      },
+      "description": {
+        "es": "Investigación orientada a la eficiencia energética, energías renovables y soluciones sostenibles.",
+        "en": "Research focused on energy efficiency, renewable energy, and sustainable solutions."
+      }
+    },
+    {
+      "id": "telecommunications",
+      "icon": "📡",
+      "name": {
+        "es": "Telecomunicaciones",
+        "en": "Telecommunications"
+      },
+      "description": {
+        "es": "Desarrollo e investigación de tecnologías y sistemas modernos de telecomunicaciones.",
+        "en": "Research and development of modern telecommunications technologies and systems."
+      }
+    },
+    {
+      "id": "smart-systems",
+      "icon": "◈",
+      "name": {
+        "es": "Sistemas Inteligentes",
+        "en": "Smart Systems"
+      },
+      "description": {
+        "es": "Aplicación de tecnologías inteligentes para resolver problemas de energía y comunicaciones.",
+        "en": "Application of intelligent technologies to address energy and communication challenges."
+      }
+    }
+  ],
+
+  "people": {
+    "director": [
+      {
+        "id": "director-01",
+        "name": "Nombre del Director",
+        "position": {
+          "es": "Director del Grupo de Investigación",
+          "en": "Research Group Director"
+        },
+        "bio": {
+          "es": "Descripción profesional y académica del director.",
+          "en": "Professional and academic biography of the director."
+        },
+        "email": "director@utp.ac.pa",
+        "photo": "assets/people/director.jpg",
+        "links": {
+          "profile": "",
+          "orcid": "",
+          "googleScholar": "",
+          "linkedin": ""
+        }
+      }
+    ],
+
+    "professors": [
+      {
+        "id": "professor-01",
+        "name": "Nombre del Profesor",
+        "position": {
+          "es": "Profesor / Investigador",
+          "en": "Professor / Researcher"
+        },
+        "specialization": {
+          "es": "Especialidad de investigación",
+          "en": "Research specialization"
+        },
+        "email": "profesor@utp.ac.pa",
+        "photo": "assets/people/professor-01.jpg",
+        "links": {
+          "profile": "",
+          "orcid": "",
+          "googleScholar": ""
+        }
+      }
+    ]
+  },
+
+  "students": [
+    {
+      "id": "student-01",
+      "name": "Nombre del Estudiante",
+      "program": {
+        "es": "Programa académico",
+        "en": "Academic program"
+      },
+      "researchArea": {
+        "es": "Área de investigación",
+        "en": "Research area"
+      },
+      "photo": "assets/people/student-01.jpg",
+      "links": {
+        "profile": "",
+        "orcid": ""
+      }
+    }
+  ],
+
+  "projects": [
+    {
+      "id": "project-01",
+      "status": "current",
+      "title": {
+        "es": "Nombre del Proyecto de Investigación",
+        "en": "Research Project Name"
+      },
+      "summary": {
+        "es": "Descripción breve del proyecto, objetivos y resultados esperados.",
+        "en": "Brief description of the project, objectives, and expected outcomes."
+      },
+      "researchArea": {
+        "es": "Sostenibilidad Energética",
+        "en": "Energy Sustainability"
+      },
+      "startDate": "2026",
+      "endDate": "",
+      "image": "assets/photos/research-01.jpg",
+      "links": {
+        "website": "",
+        "document": ""
+      }
+    },
+    {
+      "id": "project-02",
+      "status": "completed",
+      "title": {
+        "es": "Proyecto de Investigación Finalizado",
+        "en": "Completed Research Project"
+      },
+      "summary": {
+        "es": "Descripción del proyecto finalizado y sus principales resultados.",
+        "en": "Description of the completed project and its main results."
+      },
+      "researchArea": {
+        "es": "Telecomunicaciones",
+        "en": "Telecommunications"
+      },
+      "startDate": "2024",
+      "endDate": "2025",
+      "image": "assets/photos/research-02.jpg",
+      "links": {
+        "website": "",
+        "document": ""
+      }
+    }
+  ],
+
+  "publications": [
+    {
+      "id": "publication-01",
+      "year": 2026,
+      "title": {
+        "es": "Título de la publicación",
+        "en": "Publication Title"
+      },
+      "authors": [
+        "Nombre del Autor",
+        "Nombre del Autor 2"
+      ],
+      "venue": "Journal / Conference Name",
+      "type": "journal",
+      "doi": "",
+      "url": ""
+    }
+  ],
+
+  "collaborators": [
+    {
+      "id": "collaborator-01",
+      "name": {
+        "es": "Institución Colaboradora",
+        "en": "Collaborating Institution"
+      },
+      "description": {
+        "es": "Descripción de la colaboración.",
+        "en": "Description of the collaboration."
+      },
+      "logo": "assets/logo/collaborator-01.png",
+      "website": ""
+    }
+  ],
+
+  "awards": [
+    {
+      "id": "award-01",
+      "year": 2026,
+      "title": {
+        "es": "Nombre del Reconocimiento",
+        "en": "Award Name"
+      },
+      "description": {
+        "es": "Descripción del reconocimiento.",
+        "en": "Description of the award."
+      }
+    }
+  ],
+
+  "events": [
+    {
+      "id": "event-01",
+      "date": "2026-10-15",
+      "title": {
+        "es": "Nombre del Evento o Conferencia",
+        "en": "Event or Conference Name"
+      },
+      "location": {
+        "es": "Panamá",
+        "en": "Panama"
+      },
+      "description": {
+        "es": "Descripción del evento.",
+        "en": "Event description."
+      },
+      "url": ""
+    }
+  ],
+
+  "gallery": [
+    {
+      "id": "photo-01",
+      "image": "assets/photos/research-01.jpg",
+      "title": {
+        "es": "Actividad de investigación",
+        "en": "Research activity"
+      },
+      "category": "research"
+    },
+    {
+      "id": "photo-02",
+      "image": "assets/photos/group-photo.jpg",
+      "title": {
+        "es": "Equipo de investigación",
+        "en": "Research team"
+      },
+      "category": "group"
+    }
+  ],
+
+  "contact": {
+    "email": "research@utp.ac.pa",
+    "phone": "",
+    "address": {
+      "es": "Centro Regional de Panamá Oeste, Universidad Tecnológica de Panamá",
+      "en": "Panama Oeste Regional Center, Technological University of Panama"
+    },
+    "universityWebsite": "https://utp.ac.pa",
+    "social": {
+      "facebook": "",
+      "instagram": "",
+      "linkedin": "",
+      "youtube": ""
+    }
+  }
+}

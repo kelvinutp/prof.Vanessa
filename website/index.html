@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+        content="Grupo de Investigación en Sostenibilidad Energética y Telecomunicaciones - Universidad Tecnológica de Panamá">
+
+    <meta name="theme-color" content="#071a33">
+
+    <title>GISET | UTP</title>
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <header class="site-header" id="siteHeader">
+
+        <div class="container nav-container">
+
+            <a href="index.html" class="brand">
+                <img src="assets/logo/group-logo.png" alt="Logo del grupo de investigación" class="brand-logo">
+
+                <div class="brand-text">
+                    <span class="brand-name" data-group-short-name>GISET</span>
+                    <span class="brand-institution">UTP</span>
+                </div>
+            </a>
+
+            <button class="mobile-menu-button" id="mobileMenuButton" aria-label="Abrir menú" aria-expanded="false">
+                ☰
+            </button>
+
+            <nav class="main-nav" id="mainNav">
+
+                <a href="index.html" class="active" data-i18n="nav.home">
+                    Inicio
+                </a>
+
+                <a href="research.html" data-i18n="nav.research">
+                    Investigación
+                </a>
+
+                <a href="projects.html" data-i18n="nav.projects">
+                    Proyectos
+                </a>
+
+                <a href="publications.html" data-i18n="nav.publications">
+                    Publicaciones
+                </a>
+
+                <a href="team.html" data-i18n="nav.team">
+                    Equipo
+                </a>
+
+                <a href="collaborators.html" data-i18n="nav.collaborators">
+                    Colaboradores
+                </a>
+
+                <a href="events.html" data-i18n="nav.events">
+                    Eventos
+                </a>
+
+                <a href="gallery.html" data-i18n="nav.gallery">
+                    Galería
+                </a>
+
+                <a href="contact.html" data-i18n="nav.contact">
+                    Contacto
+                </a>
+
+                <button class="language-switcher" id="languageSwitcher" type="button">
+                    EN
+                </button>
+
+            </nav>
+        </div>
+
+    </header>
+
+
+    <main>
+
+        <!-- HERO -->
+
+        <section class="hero">
+
+            <div class="hero-background"></div>
+
+            <div class="container hero-content">
+
+                <div class="hero-label">
+                    <span></span>
+                    <span data-i18n="hero.label">
+                        Investigación · Innovación · Sostenibilidad
+                    </span>
+                </div>
+
+                <h1 data-group-name>
+                    Grupo de Investigación en Sostenibilidad Energética y Telecomunicaciones
+                </h1>
+
+                <p class="hero-description" data-group-description>
+                    Investigación aplicada para un futuro energético y tecnológico sostenible.
+                </p>
+
+                <div class="hero-actions">
+
+                    <a href="research.html" class="button button-primary" data-i18n="hero.explore">
+                        Explorar investigación
+                    </a>
+
+                    <a href="contact.html" class="button button-outline" data-i18n="hero.contact">
+                        Contactarnos
+                    </a>
+
+                </div>
+
+                <div class="hero-meta">
+
+                    <div>
+                        <strong>UTP</strong>
+                        <span data-group-faculty>
+                            Facultad de Ingeniería Eléctrica
+                        </span>
+                    </div>
+
+                    <div>
+                        <strong data-group-campus>
+                            Centro Regional de Panamá Oeste
+                        </strong>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- RESEARCH AREAS -->
+
+        <section class="section">
+
+            <div class="container">
+
+                <div class="section-heading">
+
+                    <span class="eyebrow" data-i18n="research.eyebrow">
+                        Áreas de investigación
+                    </span>
+
+                    <h2 data-i18n="research.heading">
+                        Investigación para resolver desafíos reales
+                    </h2>
+
+                    <p data-i18n="research.intro">
+                        Nuestro trabajo integra energía, telecomunicaciones y tecnologías
+                        emergentes para desarrollar soluciones con impacto.
+                    </p>
+
+                </div>
+
+                <div class="research-grid" id="researchAreas"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- FEATURED PROJECTS -->
+
+        <section class="section section-dark">
+
+            <div class="container">
+
+                <div class="section-heading light">
+
+                    <span class="eyebrow" data-i18n="projects.eyebrow">
+                        Proyectos
+                    </span>
+
+                    <h2 data-i18n="projects.heading">
+                        Investigación en acción
+                    </h2>
+
+                </div>
+
+                <div class="project-grid" id="featuredProjects"></div>
+
+                <div class="section-action">
+
+                    <a href="projects.html" class="button button-outline" data-i18n="projects.viewAll">
+                        Ver todos los proyectos
+                    </a>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- GROUP INTRO -->
+
+        <section class="section">
+
+            <div class="container two-column">
+
+                <div>
+
+                    <span class="eyebrow" data-i18n="about.eyebrow">
+                        Nuestro grupo
+                    </span>
+
+                    <h2 data-i18n="about.heading">
+                        Ciencia, formación y colaboración
+                    </h2>
+
+                    <p data-group-description></p>
+
+                    <p>
+                        <strong data-i18n="about.missionLabel">
+                            Misión
+                        </strong>
+                    </p>
+
+                    <p data-group-mission></p>
+
+                </div>
+
+                <div class="about-card">
+
+                    <div class="about-stat">
+                        <span class="stat-number" id="projectCount">0</span>
+                        <span data-i18n="stats.projects">Proyectos</span>
+                    </div>
+
+                    <div class="about-stat">
+                        <span class="stat-number" id="peopleCount">0</span>
+                        <span data-i18n="stats.people">Investigadores y estudiantes</span>
+                    </div>
+
+                    <div class="about-stat">
+                        <span class="stat-number" id="publicationCount">0</span>
+                        <span data-i18n="stats.publications">Publicaciones</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- CTA -->
+
+        <section class="cta-section">
+
+            <div class="container cta-content">
+
+                <div>
+
+                    <span class="eyebrow" data-i18n="cta.eyebrow">
+                        Conectemos
+                    </span>
+
+                    <h2 data-i18n="cta.heading">
+                        ¿Quieres colaborar con nuestro grupo?
+                    </h2>
+
+                    <p data-i18n="cta.text">
+                        Estamos abiertos a nuevas colaboraciones académicas,
+                        científicas y tecnológicas.
+                    </p>
+
+                </div>
+
+                <a href="contact.html" class="button button-primary" data-i18n="cta.button">
+                    Contactar
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer class="site-footer">
+
+        <div class="container footer-grid">
+
+            <div>
+
+                <div class="footer-brand" data-group-short-name>
+                    GISET
+                </div>
+
+                <p data-group-description></p>
+
+            </div>
+
+            <div>
+
+                <h3 data-i18n="footer.navigation">
+                    Navegación
+                </h3>
+
+                <a href="research.html" data-i18n="nav.research">
+                    Investigación
+                </a>
+
+                <a href="projects.html" data-i18n="nav.projects">
+                    Proyectos
+                </a>
+
+                <a href="team.html" data-i18n="nav.team">
+                    Equipo
+                </a>
+
+                <a href="contact.html" data-i18n="nav.contact">
+                    Contacto
+                </a>
+
+            </div>
+
+            <div>
+
+                <h3 data-i18n="footer.contact">
+                    Contacto
+                </h3>
+
+                <a data-contact-email-link href="mailto:research@utp.ac.pa">
+                    <span data-contact-email>
+                        research@utp.ac.pa
+                    </span>
+                </a>
+
+                <p data-contact-address></p>
+
+            </div>
+
+        </div>
+
+        <div class="footer-bottom">
+
+            <div class="container">
+
+                <span>
+                    © <span id="currentYear"></span>
+                    <span data-group-short-name>GISET</span>
+                </span>
+
+                <a data-university-link href="https://utp.ac.pa" target="_blank" rel="noopener">
+                    Universidad Tecnológica de Panamá
+                </a>
+
+            </div>
+
+        </div>
+
+    </footer>
+
+
+    <script src="js/app.js"></script>
+
+</body>
+
+</html>
