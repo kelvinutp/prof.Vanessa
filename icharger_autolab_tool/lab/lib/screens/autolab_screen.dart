@@ -12,7 +12,7 @@ class _AutolabScreenState extends State<AutolabScreen> {
   final _formKey = GlobalKey<FormState>();
   
   String currentRange = '1A';
-  double bandwidthEI = 10.0;
+  String bandwidthEI = 'High speed';
   double setpointDC = 0.0;
   bool dsgInput = false;
   String waveSignal = 'Sine';
@@ -33,15 +33,15 @@ class _AutolabScreenState extends State<AutolabScreen> {
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Current Range'),
                 initialValue: currentRange,
-                items: ['10mA', '100mA', '1A', '10A'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                items: ['1A','100 mA','10 mA','1 mA','100 µA','10 µA','1 µA','100 nA','10 nA'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (val) => setState(() => currentRange = val!),
               ),
-              TextFormField(
+              DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Bandwidth of EI (Hz)'),
-                keyboardType: TextInputType.number,
-                initialValue: bandwidthEI.toString(),
-                onSaved: (val) => bandwidthEI = double.parse(val!),
-              ),
+                initialValue: bandwidthEI,
+                items: ['High stability','High speed','Ultra high speed'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (val) => setState(() => bandwidthEI = val!),
+              ),              
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Setpoint DC (V)'),
                 keyboardType: TextInputType.number,
@@ -56,7 +56,7 @@ class _AutolabScreenState extends State<AutolabScreen> {
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Wave Signal'),
                 initialValue: waveSignal,
-                items: ['Sine', 'Square', 'Triangle'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                items: ['Sine', '5 sines', '15 sines'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (val) => setState(() => waveSignal = val!),
               ),
               TextFormField(
@@ -66,7 +66,7 @@ class _AutolabScreenState extends State<AutolabScreen> {
                 onSaved: (val) => cycles = int.parse(val!),
               ),
               TextFormField(
-                decoration: const InputDecoration(labelText: 'Integration Time (s)'),
+                decoration: const InputDecoration(labelText: 'Maximum Integration Time (s)'),
                 keyboardType: TextInputType.number,
                 initialValue: integrationTime.toString(),
                 onSaved: (val) => integrationTime = double.parse(val!),
