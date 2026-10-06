@@ -1,0 +1,36 @@
+{
+  "serial": {
+    "default_baud_rate": 115200,
+    "available_baud_rates": [9600, 19200, 38400, 57600, 115200, 230400],
+    "data_bits": 8,
+    "stop_bits": 1,
+    "parity": "none",
+    "flow_control": {
+      "rts": true,
+      "dtr": true
+    },
+    "reconnection": {
+      "enabled": true,
+      "initial_delay_ms": 1000,
+      "multiplier": 2.0,
+      "max_delay_ms": 16000,
+      "jitter_ms": 250,
+      "max_retries": 15
+    },
+    "known_chipsets": [
+      { "name": "FTDI FT232 / FT2232 / FT4232", "vendor_id": "0403", "product_ids": ["6001", "6010", "6011", "6014", "6015"] },
+      { "name": "Silicon Labs CP2102 / CP2104 / CP2108", "vendor_id": "10C4", "product_ids": ["EA60", "EA70", "EA71"] },
+      { "name": "WCH QinHeng CH340 / CH341", "vendor_id": "1A86", "product_ids": ["7523", "5523", "7522"] },
+      { "name": "Prolific PL2303", "vendor_id": "067B", "product_ids": ["2303", "23A3"] },
+      { "name": "Arduino / Atmel CDC", "vendor_id": "2341", "product_ids": ["0043", "0001", "0010", "0243"] },
+      { "name": "Raspberry Pi Pico (CDC)", "vendor_id": "2E8A", "product_ids": ["0005", "000A"] },
+      { "name": "STMicroelectronics Virtual COM", "vendor_id": "0483", "product_ids": ["5740"] }
+    ]
+  },
+  "bridge": {
+    "websocket_port": 8080,
+    "websocket_host": "127.0.0.1",
+    "ping_interval_ms": 5000,
+    "auto_broadcast_telemetry": true
+  }
+}

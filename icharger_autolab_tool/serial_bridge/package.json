@@ -1,0 +1,33 @@
+{
+  "name": "lab-control-serial-bridge",
+  "version": "1.0.0",
+  "description": "High-resilience Windows COM Port & Serial-to-WebSocket bridge for Lab Control Suite & iCharger",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "diagnose": "node diagnose.js",
+    "check-env": "node binding_check.js",
+    "rebuild": "node-gyp rebuild"
+  },
+  "keywords": [
+    "serialport",
+    "windows",
+    "com-port",
+    "ftdi",
+    "ch340",
+    "cp2102",
+    "websocket",
+    "icharger"
+  ],
+  "author": "Lab Control Suite Team",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "serialport": "^12.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^10.2.0"
+  }
+}
+
