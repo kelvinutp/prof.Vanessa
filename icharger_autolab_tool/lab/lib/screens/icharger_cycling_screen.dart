@@ -31,9 +31,11 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
       final sanitizedName = batteryName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
       final file = File('${directory.path}/battery_${sanitizedName}_$timestamp.csv');
       
+
       _csvSink = file.openWrite();
       _csvSink!.writeln('Timestamp,BatteryName,NominalVoltage,CapacityMah,RawData');
       
+
       setState(() {
         isLogging = true;
         _lastFilePath = file.path;
@@ -43,13 +45,17 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
         if (isLogging && _csvSink != null) {
           final now = DateTime.now().toIso8601String();
           _csvSink!.writeln('$now,"$batteryName",$nominalVoltage,$capacityMah,"$dataString"');
+          final sanitizedData = dataString.replaceAll('"', '""').trim();
+          _csvSink!.writeln('$now,"$batteryName",$nominalVoltage,$capacityMah,"$sanitizedData"');
         }
       };
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Logging data to: ${file.path}')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to start CSV log: $e')),
       );
@@ -61,9 +67,20 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
     await _csvSink?.flush();
     await _csvSink?.close();
     _csvSink = null;
+    try {
+      await _csvSink?.flush();
+      await _csvSink?.close();
+    } catch (e) {
+      debugPrint('[CSV] Error flushing sink: $e');
+    } finally {
+      _csvSink = null;
+    }
+
     setState(() {
       isLogging = false;
     });
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Data collection stopped and saved to CSV.')),
     );
@@ -96,7 +113,25 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
   @override
   void dispose() {
     _csvSink?.close();
+    _csvSink = null;
     super.dispose();
+  }
+
+  Color _getStatusColor(SerialConnectionState state) {
+    switch (state) {
+      case SerialConnectionState.connected:
+        return Colors.greenAccent;
+      case SerialConnectionState.reconnecting:
+        return Colors.orangeAccent;
+      case SerialConnectionState.busy:
+      case SerialConnectionState.error:
+        return Colors.redAccent;
+      case SerialConnectionState.connecting:
+      case SerialConnectionState.scanning:
+        return Colors.blueAccent;
+      case SerialConnectionState.disconnected:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -120,7 +155,30 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
                 onPressed: isConnectingOrBauding ? null : () => usbService.getAvailableDevices(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Scan USB Devices'),
+              // Connection Status Header
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _getStatusColor(usbService.connectionState)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.circle, size: 12, color: _getStatusColor(usbService.connectionState)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Port State: ${usbService.statusMessage}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 16),
+
+              const Text('USB & Serial Configuration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
                 decoration: const InputDecoration(labelText: 'Baud Rate (Manual Override)', border: OutlineInputBorder()),
@@ -129,6 +187,27 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
                     .map((rate) => DropdownMenuItem(value: rate, child: Text('$rate baud')))
                     .toList(),
                 onChanged: (val) => usbService.setBaudRate(val!),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => usbService.getAvailableDevices(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Scan Ports'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      decoration: const InputDecoration(labelText: 'Baud Rate', border: OutlineInputBorder()),
+                      initialValue: usbService.selectedBaudRate,
+                      items: [9600, 19200, 38400, 57600, 115200, 230400]
+                          .map((rate) => DropdownMenuItem(value: rate, child: Text('$rate baud')))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) usbService.setBaudRate(val);
+                      },
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<dynamic>(
