@@ -69,6 +69,30 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
     );
   }
 
+  Future<void> _handleDeviceSelection(UsbService usbService, dynamic device) async {
+    if (device == null) return;
+
+    // Trigger auto-baud connection flow
+    bool success = await usbService.connectWithAutoBaud(device);
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connected successfully at ${usbService.selectedBaudRate} baud!')),
+      );
+    } else if (usbService.connectionState == ConnectionStateEnum.baudRateFailed) {
+      // Handle auto-baud failure: prompt user to pick manual baud rate
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Auto-baud failed after 3 attempts. Please choose a baud rate manually and reconnect.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _csvSink?.close();
@@ -78,6 +102,9 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
   @override
   Widget build(BuildContext context) {
     final usbService = Provider.of<UsbService>(context);
+    final isConnected = usbService.connectionState == ConnectionStateEnum.connected;
+    final isConnectingOrBauding = usbService.connectionState == ConnectionStateEnum.connecting ||
+                                  usbService.connectionState == ConnectionStateEnum.autoBauding;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -90,32 +117,51 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
               const Text('USB & Baud Rate Configuration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               ElevatedButton.icon(
-                onPressed: () => usbService.getAvailableDevices(),
+                onPressed: isConnectingOrBauding ? null : () => usbService.getAvailableDevices(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Scan USB Devices'),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                decoration: const InputDecoration(labelText: 'Baud Rate', border: OutlineInputBorder()),
-                initialValue: usbService.selectedBaudRate,
+                decoration: const InputDecoration(labelText: 'Baud Rate (Manual Override)', border: OutlineInputBorder()),
+                value: usbService.selectedBaudRate,
                 items: [9600, 19200, 38400, 57600, 115200]
                     .map((rate) => DropdownMenuItem(value: rate, child: Text('$rate baud')))
                     .toList(),
                 onChanged: (val) => usbService.setBaudRate(val!),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<UsbDevice>(
-                decoration: const InputDecoration(labelText: 'Select USB Port / Device', border: OutlineInputBorder()),
+              DropdownButtonFormField<dynamic>(
+                decoration: InputDecoration(
+                  labelText: isConnectingOrBauding 
+                      ? (usbService.connectionState == ConnectionStateEnum.autoBauding 
+                          ? 'Auto-bauding in progress...' 
+                          : 'Connecting...') 
+                      : 'Select USB Port / Device',
+                  border: const OutlineInputBorder(),
+                ),
                 items: usbService.devices.map((device) {
                   return DropdownMenuItem(
                     value: device,
-                    child: Text(device.deviceName ?? 'Device ID: ${device.deviceId}'),
+                    child: Text(device.deviceName ?? 'Device ID: ${device.deviceId ?? "Unknown"}'),
                   );
                 }).toList(),
-                onChanged: (device) {
-                  if (device != null) usbService.connect(device);
-                },
+                onChanged: isConnectingOrBauding ? null : (device) => _handleDeviceSelection(usbService, device),
               ),
+              
+              // Warning banner if auto-baud failed
+              if (usbService.connectionState == ConnectionStateEnum.baudRateFailed) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.orange.shade100,
+                  child: const Text(
+                    '⚠️ Auto-baud detection failed. Please select your device\'s baud rate manually from the dropdown above and try reconnecting.',
+                    style: TextStyle(color: Colors.brown, fontSize: 13),
+                  ),
+                ),
+              ],
+
               const Divider(height: 40),
               const Text('Battery Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
@@ -144,7 +190,7 @@ class _IChargerCyclingScreenState extends State<IChargerCyclingScreen> {
               if (!isLogging)
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, minimumSize: const Size.fromHeight(50)),
-                  onPressed: usbService.isConnected ? () => _startDataCollection(usbService) : null,
+                  onPressed: isConnected ? () => _startDataCollection(usbService) : null,
                   icon: const Icon(Icons.fiber_manual_record, color: Colors.white),
                   label: const Text('Start Data Collection (Save to CSV)', style: TextStyle(color: Colors.white)),
                 )
